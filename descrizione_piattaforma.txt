@@ -20,7 +20,7 @@ Quando l'utente carica i documenti, il sistema tenta di precompilare:
 1. i-fatt       → fatturato corrente (da Totale Annuo FIC)
 2. i-bolli      → n. fatture con bollo (da FIC: fattureCon > nFatture)
 3. i-coeff      → coefficiente redditività (da LM/ATECO RPF)
-4. i-aliq       → aliquota imposta sostitutiva (calcolata da RPF: LM39 / LM36)
+4. i-aliq       → aliquota imposta sostitutiva (se 15% precompila, se 5% mantiene il 15% di default per prevenire errori di fine quinquennio e mostra un warning cliccabile per applicare il 5%)
 5. i-inps-ded   → INPS deducibili (da LM35 RPF o totale cod.0900 F24 di tutti i periodi)
 6. i-acc-imp    → acconti imposta sost. (da LM45 RPF o cod.1790+1791 F24)
 7. i-acc-inps   → acconti INPS versati (da cod.0900 F24 per l'anno corrente o stimati da ricevute F24 e RPF)

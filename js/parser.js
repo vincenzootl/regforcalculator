@@ -582,6 +582,9 @@ async function processFiles(fileList, type) {
   for (const k of Object.keys(extracted)) delete extracted[k];
   for (const k of Object.keys(prevYear)) delete prevYear[k];
 
+  const elWarn = document.getElementById('aliq-warning');
+  if (elWarn) { elWarn.style.display = 'none'; elWarn.innerHTML = ''; }
+
   // Rielabora tutti gli slot attivi
   for (const [slotType, list] of Object.entries(files)) {
     if (!list) continue;
@@ -691,6 +694,14 @@ function setField(inputId, srcId, value) {
   setSrc(srcId, true);
 }
 
+function impostaAliquota(val) {
+  setField('i-aliq', 'aliq', val);
+  const elWarn = document.getElementById('aliq-warning');
+  if (elWarn) elWarn.style.display = 'none';
+  logOk(`Aliquota al ${val}% applicata con successo.`);
+}
+window.impostaAliquota = impostaAliquota;
+
 /* ── PREFILL COMPLETO ─────────────────────────────────────────*/
 function prefillFields() {
 
@@ -705,7 +716,20 @@ function prefillFields() {
   if (extracted.coeff)      setField('i-coeff',    'coeff',    extracted.coeff);
 
   // Aliquota imposta sostitutiva
-  if (extracted.aliqImposta) setField('i-aliq',   'aliq',     extracted.aliqImposta);
+  const elWarn = document.getElementById('aliq-warning');
+  if (elWarn) elWarn.style.display = 'none';
+
+  if (extracted.aliqImposta) {
+    if (extracted.aliqImposta === 5) {
+      if (elWarn) {
+        elWarn.innerHTML = `Rilevata aliquota al 5% nel 2024. Sei ancora nel quinquennio agevolato? <a href="#" onclick="impostaAliquota(5); return false;">Applica aliquota al 5%</a>`;
+        elWarn.style.display = 'block';
+      }
+      logInfo(`Aliquota al 5% rilevata nella dichiarazione precedente. Per prudenza il calcolatore mantiene il 15% (scadenza quinquennio). Se hai ancora diritto all'aliquota agevolata, clicca sul link sotto il campo.`);
+    } else {
+      setField('i-aliq', 'aliq', extracted.aliqImposta);
+    }
+  }
 
   // Mesi al F24 di giugno (auto)
   const elMesi = document.getElementById('i-mesi');

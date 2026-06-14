@@ -407,3 +407,21 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Inter','Segoe UI',sans-serif;
 .footer p{font-size:.72rem;color:var(--slate-400)}
 .footer a{color:var(--slate-400);text-decoration:none}
 .footer a:hover{color:var(--blue-600)}
+
+/* Warnings below fields */
+.field-warning {
+  font-size: .72rem;
+  color: var(--orange-600);
+  background: var(--orange-50);
+  border: 1px solid var(--orange-200);
+  border-radius: var(--r-sm);
+  padding: .45rem .65rem;
+  margin-top: .3rem;
+  line-height: 1.4;
+}
+.field-warning a {
+  color: var(--blue-600);
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+}
