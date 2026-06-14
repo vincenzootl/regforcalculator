@@ -149,7 +149,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Inter','Segoe UI',sans-serif;
 .info-box{background:var(--blue-50);border:1px solid var(--blue-100);border-radius:var(--r-md);padding:.75rem 1rem;font-size:.78rem;color:var(--blue-700);line-height:1.6;margin-bottom:.75rem}
 .info-box strong{font-weight:700}
 
-/* ACCENT STRIP (spiega acconti) */
+/* ACCENT STRIP */
 .accent-strip{background:var(--orange-50);border:1px solid var(--orange-200);border-radius:var(--r-md);padding:.75rem 1rem;font-size:.78rem;color:var(--orange-600);line-height:1.6;margin-bottom:.75rem}
 
 /* BADGE */
@@ -196,7 +196,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Inter','Segoe UI',sans-serif;
   <p>Carica i tuoi documenti fiscali — i campi vengono compilati automaticamente.</p>
 </div>
 
-<!-- STEPPER -->
 <div class="stepper" role="tablist">
   <button class="step-btn active" onclick="goStep(0)" role="tab" aria-selected="true">
     <div class="s-num">1</div><div class="s-label">Documenti</div>
@@ -218,7 +217,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Inter','Segoe UI',sans-serif;
   </button>
 </div>
 
-<!-- ═══ STEP 0: CARICA DOCUMENTI ═══ -->
 <div id="step-0" class="section active">
   <div class="card">
     <div class="card-title">Carica i tuoi documenti fiscali</div>
@@ -272,7 +270,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Inter','Segoe UI',sans-serif;
   </div>
 </div>
 
-<!-- ═══ STEP 1: PARAMETRI ═══ -->
 <div id="step-1" class="section">
   <div class="card">
     <div class="card-title">Dati fatturazione anno corrente</div>
@@ -368,7 +365,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Inter','Segoe UI',sans-serif;
   </div>
 </div>
 
-<!-- ═══ STEP 2: CALCOLO ═══ -->
 <div id="step-2" class="section">
   <div class="accent-strip">
     <strong>Perché il totale da versare supera il carico fiscale reale?</strong><br>
@@ -395,7 +391,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Inter','Segoe UI',sans-serif;
   </div>
 </div>
 
-<!-- ═══ STEP 3: F24 ═══ -->
 <div id="step-3" class="section">
   <div class="card-title" style="padding-left:.1rem;margin-bottom:.6rem">Da versare — anno corrente</div>
 
@@ -427,7 +422,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Inter','Segoe UI',sans-serif;
   </div>
 </div>
 
-<!-- ═══ STEP 4: CONFRONTO ═══ -->
 <div id="step-4" class="section">
   <div class="card">
     <div class="card-title">Anno precedente vs anno corrente</div>
@@ -440,7 +434,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Inter','Segoe UI',sans-serif;
   </div>
 </div>
 
-<!-- ═══ STEP 5: ACCANTONAMENTO ═══ -->
 <div id="step-5" class="section">
   <div class="acc-banner">
     <div><div class="acc-label">Da accantonare ogni mese</div><div class="acc-sub">Per coprire il F24 di giugno</div></div>
@@ -462,10 +455,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Inter','Segoe UI',sans-serif;
   </div>
 </div>
 
-</div><!-- .shell -->
-
-<!-- TOOLTIP MODAL -->
-<div class="tip-overlay" id="tip-overlay" onclick="closeTip(event)">
+</div><div class="tip-overlay" id="tip-overlay" onclick="closeTip(event)">
   <div class="tip-box">
     <button class="tip-close" onclick="closeTip(null)">✕</button>
     <div class="tip-icon" id="tip-icon">💡</div>
@@ -475,22 +465,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Inter','Segoe UI',sans-serif;
   </div>
 </div>
 
-<!-- PDF.js 2.x legacy con worker inline — nessun file worker separato -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script>
 'use strict';
 
 /* ── PDF.js worker ─────────────────────────────────────────── */
-// PDF.js 2.16 — il worker viene caricato dal tag <script> sopra
-// In PDF.js 2.x, caricare il worker.min.js come script globale
-// è sufficiente: il worker viene trovato automaticamente.
-// Nessuna configurazione aggiuntiva necessaria.
-if (typeof pdfjsLib !== 'undefined') {
-  pdfjsLib.GlobalWorkerOptions.workerSrc =
-    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
-}
+// Caricamento semplificato e diretto per evitare blocchi CORS/CSP
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
 /* ── STATE ─────────────────────────────────────────────────── */
 const extracted = {};   // dati estratti dai documenti
@@ -614,7 +596,6 @@ async function pdfToText(file) {
 
 /* ── UTILS ──────────────────────────────────────────────────── */
 
-// Converte stringa IT in numero: "1.892,06" → 1892.06
 function parseIT(s) {
   if (!s) return null;
   const clean = String(s).trim().replace(/\./g,'').replace(',','.');
@@ -622,183 +603,79 @@ function parseIT(s) {
   return isNaN(n) ? null : n;
 }
 
-// Estrae TUTTI i numeri con formato italiano da una stringa
 function extractAmounts(s) {
   const matches = s.match(/\d{1,3}(?:\.\d{3})*,\d{2}/g) || [];
   return matches.map(parseIT).filter(v => v !== null && v > 0);
 }
 
-// Estrae importi dal formato F24 grafico: "1.892 06" (spazio al posto della virgola)
-function extractAmountsGraf(s) {
-  const results = [...extractAmounts(s)];
-  const re = /(?<!\d)((?:\d{1,3}\.)*\d{1,3})\s+(\d{2})(?!\d)/g;
-  let m;
-  while ((m = re.exec(s)) !== null) {
-    const v = parseIT(m[1] + ',' + m[2]);
-    if (v && v > 0) results.push(v);
-  }
-  return results;
-}
-
-// Cerca il primo numero dopo un'etichetta nel testo (finestra scorrevole)
-function findLabel(text, label, windowChars) {
-  const idx = text.indexOf(label);
-  if (idx === -1) return null;
-  const chunk = text.slice(idx, idx + (windowChars || 300));
-  const amounts = extractAmounts(chunk);
-  return amounts.length ? amounts[0] : null;
-}
-
-// Cerca il numero più vicino DOPO una label regex nel testo
-function findRegex(text, pattern) {
-  const re = new RegExp(pattern, 'i');
-  const m = text.match(re);
-  if (!m) return null;
-  // cerca il primo numero nella stringa dopo il match
-  const after = text.slice(text.indexOf(m[0]) + m[0].length, text.indexOf(m[0]) + m[0].length + 200);
-  const amounts = extractAmounts(after);
-  return amounts.length ? amounts[0] : null;
-}
-
 /* ── PARSER F24 ──────────────────────────────────────────────── */
-/*
-  I PDF F24 si presentano in TRE formati distinti:
-
-  FORMATO A — Ricevuta di riepilogo (la più comune):
-    "Importo versamento : E. 2.819,06"
-    → estraiamo il totale versato
-
-  FORMATO B — Modello F24 grafico (PDF con celle del modulo):
-    Numeri nel formato "1.892 06" (spazio invece della virgola decimale)
-    perché ogni cella del modello è un token PDF separato.
-    → Il saldo finale è il numero più grande e compare per ultimo.
-    → Separare INPS da imposta sostitutiva è inaffidabile su questo formato
-      perché i totali di riga si confondono con i singoli importi.
-    → Strategia: estraiamo il SALDO FINALE totale del F24.
-      La separazione INPS/imposta la facciamo con la dichiarazione RPF (LM35/LM45).
-
-  FORMATO C — Modello F24 digitale (testo selezionabile):
-    Numeri nel formato standard "1.892,06"
-    → Possiamo estrarre per codice tributo (0900, 1790, 1791, 1792)
-
-  In tutti i casi, sommiamo i saldi finali di tutti i F24 caricati.
-*/
 function parseF24(text) {
-  logInfo('F24: analisi formato PDF...');
-
-  const result = {
-    acc0900: 0,
-    acc1790: 0,
-    acc1791: 0,
-    acc1792: 0,
-    totaleVersato: 0,
-    isRicevuta: false,
-    isGrafico: false
-  };
-
+  logInfo('F24: analisi del PDF...');
+  const result = { acc0900: 0, acc1790: 0, acc1791: 0, acc1792: 0, totaleVersato: 0, isRicevuta: false };
   const flat = text.replace(/\s+/g, ' ').trim();
 
-  // ── FORMATO A: Ricevuta ──────────────────────────────────────────
-  const ricevutaRe = /[Ii]mporto\s+versamento\s*:\s*[Ee]\.?\s*([\d\.]+,\d{2})/g;
-  let mRic, totRic = 0, nRic = 0;
-  while ((mRic = ricevutaRe.exec(flat)) !== null) {
-    const v = parseIT(mRic[1]);
-    if (v && v > 0 && v < 100000) { totRic += v; nRic++; logOk(`Ricevuta: € ${fmtEur(v)}`); }
+  // FORMATO A: Ricevuta
+  const ricevutaPattern = /[Ii]mporto\s+versamento\s*:\s*[Ee]\.?\s*([\d\.]+,\d{2})/g;
+  let ricevutaMatch, totRicevuta = 0, nRicevute = 0;
+
+  while ((ricevutaMatch = ricevutaPattern.exec(flat)) !== null) {
+    const v = parseIT(ricevutaMatch[1]);
+    if (v && v > 0 && v < 100000) {
+      totRicevuta += v;
+      nRicevute++;
+      logOk(`Ricevuta F24: importo versamento = € ${v.toLocaleString('it-IT', {minimumFractionDigits:2})}`);
+    }
   }
-  if (nRic > 0) {
+
+  if (nRicevute > 0) {
     result.isRicevuta = true;
-    result.totaleVersato = Math.round(totRic * 100) / 100;
-    logInfo(`${nRic} ricevuta/e — totale: € ${fmtEur(result.totaleVersato)}`);
-    logInfo('Le ricevute non distinguono INPS da imposta: usa anche la dichiarazione RPF.');
+    result.totaleVersato = Math.round(totRicevuta * 100) / 100;
+    logInfo(`Trovate ${nRicevute} ricevuta/e — totale versato: € ${result.totaleVersato.toLocaleString('it-IT',{minimumFractionDigits:2})}`);
     return result;
   }
 
-  // ── FORMATO C: F24 digitale con codici tributo standard ──────────
+  // FORMATO B: Modello F24
   const TRIBUTI = [
     { key: 'acc0900', code: '0900', label: 'INPS GS' },
     { key: 'acc1790', code: '1790', label: 'Imp.sost. 1°acc' },
     { key: 'acc1791', code: '1791', label: 'Imp.sost. 2°acc' },
-    { key: 'acc1792', code: '1792', label: 'Credito' },
+    { key: 'acc1792', code: '1792', label: 'Credito compensato' },
   ];
-  let trovatiCodici = false;
+
   for (const t of TRIBUTI) {
     let pos = 0;
     while (true) {
       const idx = flat.indexOf(t.code, pos);
       if (idx === -1) break;
-      const window = flat.slice(idx + t.code.length, idx + t.code.length + 80);
-      // Cerca importi in formato STANDARD (con virgola): "1.234,56"
-      const stdAmounts = extractAmounts(window).filter(v => v >= 10 && v < 30000);
-      if (stdAmounts.length) {
-        result[t.key] += stdAmounts[0];
-        logOk(`Cod.${t.code} (${t.label}): € ${fmtEur(stdAmounts[0])}`);
-        trovatiCodici = true;
+      const window = flat.slice(idx, idx + 300);
+      const amounts = extractAmounts(window).filter(v => v >= 10 && v < 30000);
+      if (amounts.length) {
+        const best = Math.max(...amounts);
+        result[t.key] += best;
+        logOk(`Cod.${t.code} (${t.label}): € ${best.toLocaleString('it-IT',{minimumFractionDigits:2})}`);
       }
       pos = idx + t.code.length;
     }
   }
-  if (trovatiCodici) {
-    result.totaleVersato = result.acc0900 + result.acc1790 + result.acc1791;
-    return result;
-  }
 
-  // ── FORMATO B: F24 grafico (numeri con spazio: "1.892 06") ───────
-  // Estrae importi con il formato "NNN 00" o "N.NNN 00"
-  logInfo('F24 grafico rilevato — estraggo saldo finale...');
-  result.isGrafico = true;
-
-  // Pattern: numero (con eventuale punto migliaia) + spazio + 2 cifre decimali
-  const grafAmounts = [];
-  const grafRe = /(?<!\d)((?:\d{1,3}\.)*\d{1,3})\s+(\d{2})(?!\d)/g;
-  let mGraf;
-  while ((mGraf = grafRe.exec(flat)) !== null) {
-    const v = parseIT(mGraf[1] + ',' + mGraf[2]);
-    if (v && v > 0) grafAmounts.push(v);
-  }
-
-  // Il saldo finale è il valore più grande tra tutti
-  const saldi = grafAmounts.filter(v => v >= 100 && v < 100000);
-  if (saldi.length) {
-    // Sommiamo i valori distinti > 1000 (i saldi finali dei F24)
-    const saldiSignificativi = [...new Set(saldi.filter(v => v > 1000))].sort((a,b) => b-a);
-    // In un PDF multipagina, lo stesso saldo compare 3 volte (3 copie del modello)
-    // Prendiamo i valori UNICI
-    result.totaleVersato = saldiSignificativi.length > 0 ? saldiSignificativi[0] : 0;
-    logOk(`F24 grafico: saldo finale = € ${fmtEur(result.totaleVersato)}`);
-    logInfo('F24 grafico: carica anche la dichiarazione RPF per separare INPS e imposta.');
-  } else {
-    logWarn('F24: nessun importo estratto — PDF potrebbe essere scansionato');
-  }
-
+  const hasCodici = result.acc0900 > 0 || result.acc1790 > 0 || result.acc1791 > 0;
+  if (!hasCodici) logWarn('F24: nessun importo estratto — il PDF potrebbe essere un\'immagine scansionata');
   return result;
 }
 
-
 /* ── PARSER RPF / MODELLO REDDITI ────────────────────────────── */
-/*
-  I PDF del Modello Redditi PF hanno i righi (LM22, LM34, ecc.) come
-  label testuali. PDF.js li estrae linearmente ma l'ordine può variare.
-  Strategia: cerca la label esatta, poi il primo numero utile dopo.
-  Bug del parser precedente: regex "[^\d]*" falliva quando tra label
-  e valore c'erano testi come ",00" o altri token intermedi.
-*/
 function parseRPF(text) {
   logInfo('RPF/Redditi: scansione quadro LM e RR...');
   const result = {};
-
-  // Normalizza
   const flat = text.replace(/\r\n/g, '\n').replace(/[ \t]+/g, ' ');
 
-  // Helper: cerca "LMxx" e prende il primo importo significativo dopo
   function getLM(rigo, minVal, maxVal) {
-    // Prova label esatta prima
     const labels = [`LM${rigo}`, `LM ${rigo}`, `LM0${rigo}`];
     for (const lbl of labels) {
       const idx = flat.indexOf(lbl);
       if (idx === -1) continue;
       const chunk = flat.slice(idx + lbl.length, idx + lbl.length + 400);
-      const amounts = extractAmounts(chunk)
-        .filter(v => v >= (minVal || 1) && v <= (maxVal || 999999));
+      const amounts = extractAmounts(chunk).filter(v => v >= (minVal || 1) && v <= (maxVal || 999999));
       if (amounts.length) return amounts[0];
     }
     return null;
@@ -813,64 +690,25 @@ function parseRPF(text) {
     return amounts.length ? amounts[0] : null;
   }
 
-  // LM22 — Componenti positivi (fatturato, prima riga della sezione III)
-  // Nel PDF il valore appare come "5.815,00" o "30.396,00"
-  const lm22 = getLM(22, 100, 500000);
-  if (lm22 != null) {
-    result.fatt = lm22;
-    logOk(`LM22 componenti positivi (fatturato) = € ${lm22.toLocaleString('it-IT',{minimumFractionDigits:2})}`);
-  }
+  const keys = [
+    {k:'fatt', fn:()=>getLM(22, 100, 500000), lbl:'LM22 fatturato'},
+    {k:'redLordo', fn:()=>getLM(34, 100, 500000), lbl:'LM34 reddito lordo'},
+    {k:'inpsDed', fn:()=>getLM(35, 1, 50000), lbl:'LM35 INPS deducibili'},
+    {k:'redNetto', fn:()=>getLM(36, 1, 500000), lbl:'LM36 reddito netto'},
+    {k:'imposta', fn:()=>getLM(39, 1, 50000), lbl:'LM39 imposta sostitutiva'},
+    {k:'lm43', fn:()=>getLM(43, 0.01, 10000), lbl:'LM43 eccedenza anno prec.'},
+    {k:'lm44', fn:()=>getLM(44, 0.01, 10000), lbl:'LM44 compensata F24'},
+    {k:'accImp', fn:()=>getLM(45, 1, 50000), lbl:'LM45 acconti imp.sostitutiva'},
+    {k:'inpsImponibile', fn:()=>getRR(5), lbl:'RR5 imponibile INPS'},
+    {k:'inpsDov', fn:()=>getRR(6), lbl:'RR6 INPS dovuto'},
+    {k:'inpsDebito', fn:()=>getRR(7), lbl:'RR7 contributo a debito'}
+  ];
 
-  // LM34 — Reddito lordo
-  const lm34 = getLM(34, 100, 500000);
-  if (lm34 != null) {
-    result.redLordo = lm34;
-    logOk(`LM34 reddito lordo = € ${lm34.toLocaleString('it-IT',{minimumFractionDigits:2})}`);
-  }
+  keys.forEach(obj => {
+    const val = obj.fn();
+    if (val != null) { result[obj.k] = val; logOk(`${obj.lbl} = € ${val.toLocaleString('it-IT',{minimumFractionDigits:2})}`); }
+  });
 
-  // LM35 — Contributi previdenziali deducibili
-  const lm35 = getLM(35, 1, 50000);
-  if (lm35 != null) {
-    result.inpsDed = lm35;
-    logOk(`LM35 contributi INPS deducibili = € ${lm35.toLocaleString('it-IT',{minimumFractionDigits:2})}`);
-  }
-
-  // LM36 — Reddito netto
-  const lm36 = getLM(36, 1, 500000);
-  if (lm36 != null) {
-    result.redNetto = lm36;
-    logOk(`LM36 reddito netto = € ${lm36.toLocaleString('it-IT',{minimumFractionDigits:2})}`);
-  }
-
-  // LM39 — Imposta sostitutiva dovuta
-  const lm39 = getLM(39, 1, 50000);
-  if (lm39 != null) {
-    result.imposta = lm39;
-    logOk(`LM39 imposta sostitutiva = € ${lm39.toLocaleString('it-IT',{minimumFractionDigits:2})}`);
-  }
-
-  // LM43 — Eccedenza anno precedente
-  const lm43 = getLM(43, 0.01, 10000);
-  if (lm43 != null) {
-    result.lm43 = lm43;
-    logOk(`LM43 eccedenza anno prec. = € ${lm43.toLocaleString('it-IT',{minimumFractionDigits:2})}`);
-  }
-
-  // LM44 — Eccedenza compensata nel mod. F24
-  const lm44 = getLM(44, 0.01, 10000);
-  if (lm44 != null) {
-    result.lm44 = lm44;
-    logOk(`LM44 eccedenza compensata F24 = € ${lm44.toLocaleString('it-IT',{minimumFractionDigits:2})}`);
-  }
-
-  // LM45 — Acconti versati
-  const lm45 = getLM(45, 1, 50000);
-  if (lm45 != null) {
-    result.accImp = lm45;
-    logOk(`LM45 acconti imp.sostitutiva = € ${lm45.toLocaleString('it-IT',{minimumFractionDigits:2})}`);
-  }
-
-  // Calcola credito residuo
   if (result.lm43 != null && result.lm44 != null) {
     result.credito = Math.max(0, result.lm43 - result.lm44);
     logOk(`Credito residuo (LM43 - LM44) = € ${result.credito.toLocaleString('it-IT',{minimumFractionDigits:2})}`);
@@ -878,121 +716,49 @@ function parseRPF(text) {
     result.credito = result.lm43;
   }
 
-  // RR5 — Imponibile INPS GS
-  const rr5 = getRR(5);
-  if (rr5 != null) {
-    result.inpsImponibile = rr5;
-    logOk(`RR5 imponibile INPS = € ${rr5.toLocaleString('it-IT',{minimumFractionDigits:2})}`);
-  }
-
-  // RR6 — Totale contributi dovuti
-  const rr6 = getRR(6);
-  if (rr6 != null) {
-    result.inpsDov = rr6;
-    logOk(`RR6 totale contributi INPS dovuti = € ${rr6.toLocaleString('it-IT',{minimumFractionDigits:2})}`);
-  }
-
-  // RR7 — Contributo a debito
-  const rr7 = getRR(7);
-  if (rr7 != null) {
-    result.inpsDebito = rr7;
-    logOk(`RR7 contributo a debito = € ${rr7.toLocaleString('it-IT',{minimumFractionDigits:2})}`);
-  }
-
-  const found = Object.keys(result).length;
-  if (found === 0) logWarn('RPF: nessun rigo trovato — il PDF potrebbe essere scansionato o protetto');
-  else logOk(`RPF: estratti ${found} valori dal quadro LM/RR`);
-
+  if (Object.keys(result).length === 0) logWarn('RPF: nessun rigo trovato');
   return result;
 }
 
-function parseRedditi(text) {
-  logInfo('Modello Redditi PF: analisi quadri LM e RR...');
-  return parseRPF(text);
-}
+function parseRedditi(text) { return parseRPF(text); }
 
-/* ── PARSER FattureInCloud XML (SpreadsheetML) ───────────────── */
-/*
-  FattureInCloud esporta un file XML con namespace SpreadsheetML
-  (Microsoft Office Spreadsheet). La struttura reale è:
-  - Righe di fatture con colonna "Imponibile" (numero puro es. "3440")
-  - Righe "Totale" mensili con somma
-  - Riga "Totale Annuo" con il fatturato complessivo dell'anno
-  Strategia: cerca la riga "Totale Annuo" e prende il primo numero,
-  poi conta le righe numeriche per stimare le fatture.
-*/
+/* ── PARSER FattureInCloud XML ───────────────────────────────── */
 function parseFIC(text) {
-  logInfo('FattureInCloud XML (SpreadsheetML): estrazione fatturato...');
+  logInfo('FattureInCloud XML: estrazione dati in corso...');
   const result = { fatt: 0, nFatture: 0 };
 
-  // ── Metodo 1: cerca "Totale Annuo" nel testo (riga riepilogativa) ──
-  // Il valore appare come: <Cell><Data ss:Type="String">Totale Annuo</Data></Cell>
-  // seguito da <Cell><Data ss:Type="Number">30396</Data></Cell>
+  // 1. Trova Totale Annuo estraendo il nodo xml puro in modo robusto
   const totAnnuoIdx = text.indexOf('Totale Annuo');
   if (totAnnuoIdx !== -1) {
-    // Prendo i 600 chars successivi e cerco il primo numero > 1000
-    const chunk = text.slice(totAnnuoIdx, totAnnuoIdx + 600);
-    // Cerca numeri puri (senza virgola, formato SpreadsheetML)
-    const numMatches = chunk.match(/>([\d]+(?:\.[\d]+)?)</g) || [];
-    for (const m of numMatches) {
-      const v = parseFloat(m.replace(/[><]/g, ''));
-      if (v >= 1000 && v < 500000) {
-        result.fatt = Math.round(v * 100) / 100;
-        logOk(`Totale Annuo trovato = € ${result.fatt.toLocaleString('it-IT', {minimumFractionDigits:2})}`);
-        break;
-      }
+    const chunk = text.slice(totAnnuoIdx, totAnnuoIdx + 500);
+    // SpreadsheetML formato per il totale: <Data ss:Type="Number">30396</Data>
+    const numMatches = chunk.match(/<Data ss:Type="Number">([\d\.]+)</g) || [];
+    if (numMatches.length > 0) {
+      const v = parseFloat(numMatches[0].replace(/<[^>]+>/g, ''));
+      result.fatt = Math.round(v * 100) / 100;
+      logOk(`Totale Annuo trovato = € ${result.fatt.toLocaleString('it-IT', {minimumFractionDigits:2})}`);
     }
   }
 
-  // ── Metodo 2 (fallback): somma righe "Totale" mensili ──────────────
-  if (result.fatt === 0) {
-    logInfo('FIC: ricerca per totali mensili...');
-    const mesi = ['Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno',
-                  'Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
-    let sommaMensile = 0;
-    let mesiTrovati = 0;
-    for (const mese of mesi) {
-      const idx = text.indexOf(mese);
-      if (idx === -1) continue;
-      const chunk = text.slice(idx, idx + 400);
-      const nums = chunk.match(/>([\d]+(?:\.[\d]+)?)</g) || [];
-      for (const m of nums) {
-        const v = parseFloat(m.replace(/[><]/g, ''));
-        if (v >= 100 && v < 50000) {
-          sommaMensile += v;
-          mesiTrovati++;
-          break;
-        }
-      }
-    }
-    if (sommaMensile > 0) {
-      result.fatt = Math.round(sommaMensile * 100) / 100;
-      logOk(`Fatturato da ${mesiTrovati} mesi = € ${result.fatt.toLocaleString('it-IT',{minimumFractionDigits:2})}`);
-    }
-  }
-
-  // ── Conta fatture emesse: date ISO nei blocchi "Fatture emesse" ──────
-  // Il file ha struttura mensile: ogni mese ha sezione "Fatture emesse"
-  // seguita da "Fatture ricevute". Contiamo le date (T00:00:00) solo
-  // nelle sezioni emesse, escludendo quelle ricevute.
-  const sezioniEmesse = [...text.matchAll(/Fatture emesse([\s\S]*?)(?:Fatture ricevute|Tot\.\s*[1-4])/g)];
+  // 2. Conta le fatture emesse separando correttamente i blocchi
+  // Invece di usare un regex goloso che fonde i mesi senza fatture passive, 
+  // dividiamo il testo in blocchi in corrispondenza di ogni "Fatture emesse".
+  const blocks = text.split(/>Fatture emesse</);
   let nFattureEmesse = 0;
-  sezioniEmesse.forEach(m => {
-    nFattureEmesse += (m[1].match(/T00:00:00/g) || []).length;
-  });
-  // Fallback: se la struttura è diversa, usa il totale delle date nel file
-  if (nFattureEmesse === 0) {
-    nFattureEmesse = (text.match(/T00:00:00/g) || []).length;
+  
+  for (let i = 1; i < blocks.length; i++) {
+     // Tagliamo il blocco alla riga "Totale" che chiude sempre la sezione "Fatture emesse"
+     const endIdx = blocks[i].indexOf('>Totale<');
+     const chunk = endIdx !== -1 ? blocks[i].slice(0, endIdx) : blocks[i];
+     // Contiamo le righe con marcatore di data
+     nFattureEmesse += (chunk.match(/T00:00:00/g) || []).length;
   }
+  
   result.nFatture = nFattureEmesse;
-  if (result.nFatture > 0) logOk(`Fatture emesse contate: ${result.nFatture}`);
+  if (result.nFatture > 0) logOk(`Fatture emesse contate (bolli presunti): ${result.nFatture}`);
 
-  if (result.fatt === 0) {
-    logWarn('FIC: fatturato non trovato — verifica che sia il file XML esportato da FattureInCloud');
-  }
-  if (result.nFatture === 0) {
-    logWarn('FIC: conteggio fatture non disponibile — inserisci manualmente il numero di bolli');
-  }
+  if (result.fatt === 0) logWarn('FIC: fatturato non trovato — controlla che il file sia corretto');
+  if (result.nFatture === 0) logWarn('FIC: impossibile contare le fatture — inserisci manualmente il numero di bolli');
 
   return result;
 }
@@ -1011,22 +777,15 @@ async function processFiles(fileList, type) {
 
       if (isPDF) {
         const text = await pdfToText(file);
-        logInfo(`Testo estratto: ${text.length} caratteri`);
         if (type === 'f24')     parsed = parseF24(text);
         else if (type === 'rpf')    parsed = parseRPF(text);
         else if (type === 'redditi') parsed = parseRedditi(text);
       } else if (isXML) {
         const text = await file.text();
         if (type === 'fic') parsed = parseFIC(text);
-      } else {
-        logWarn(`Formato non supportato: ${file.name}`);
       }
-
       Object.assign(extracted, parsed);
-    } catch(e) {
-      logErr(`Errore lettura ${file.name}: ${e.message}`);
-      console.error(e);
-    }
+    } catch(e) { logErr(`Errore lettura ${file.name}: ${e.message}`); }
   }
 
   updateExtractedPills();
@@ -1080,76 +839,36 @@ function setField(inputId, srcId, value) {
 }
 
 function prefillFields() {
-  // 1. Fatturato — FIC ha precedenza su RPF (più preciso)
-  const fatt = extracted.fatt;
-  if (fatt) setField('i-fatt', 'fatt', fatt);
-
-  // 2. N. bolli — solo da FIC
+  if (extracted.fatt) setField('i-fatt', 'fatt', extracted.fatt);
   if (extracted.nFatture) setField('i-bolli', 'bolli', extracted.nFatture);
-
-  // 3-5. INPS deducibili, acconti imposta, acconti INPS
-  //
-  // CASO A — Ricevute riepilogative (isRicevuta = true):
-  //   Abbiamo solo il totale versato, non i singoli codici.
-  //   Il totale F24 = saldo anno prec. + acconti corrente (INPS + imposta misti).
-  //   Non possiamo separare automaticamente: usiamo LM35 e LM45 dalla dichiarazione.
-  //
-  // CASO B — Modello F24 con codici tributo:
-  //   Abbiamo acc0900 (INPS) e acc1790+1791 (imposta) separati.
-  //   Massima precisione.
 
   const hasCodici = (extracted.acc0900 || 0) + (extracted.acc1790 || 0) + (extracted.acc1791 || 0) > 0;
   const hasRicevuta = extracted.isRicevuta && extracted.totaleVersato > 0;
 
   if (hasCodici) {
-    // CASO B: codici tributo distinti
     const inpsDed = extracted.acc0900 > 0 ? extracted.acc0900 : (extracted.inpsDed || null);
     if (inpsDed) setField('i-inps-ded', 'inpsDed', inpsDed);
-
     const accImpF24 = (extracted.acc1790 || 0) + (extracted.acc1791 || 0);
     const accImp = extracted.accImp || (accImpF24 > 0 ? accImpF24 : null);
     if (accImp) setField('i-acc-imp', 'accImp', accImp);
-
     if (extracted.acc0900 > 0) setField('i-acc-inps', 'accInps', extracted.acc0900);
-
-  } else if (hasRicevuta || extracted.isGrafico) {
-    // CASO A/B: ricevute o F24 grafico
-    // Non possiamo separare INPS da imposta → usiamo la dichiarazione RPF
-    logInfo('F24 caricato. Per i dettagli INPS/imposta, carica anche la dichiarazione RPF.');
+  } else if (hasRicevuta) {
     if (extracted.inpsDed) setField('i-inps-ded', 'inpsDed', extracted.inpsDed);
     if (extracted.accImp)  setField('i-acc-imp',  'accImp',  extracted.accImp);
-    // Stima acconti INPS: totale F24 meno acconti imposta nota
-    const totF24 = extracted.totaleVersato || 0;
-    const accImpNota = extracted.accImp || 0;
-    const accInpsStima = Math.max(0, totF24 - accImpNota);
-    if (accInpsStima > 0) {
-      setField('i-acc-inps', 'accInps', accInpsStima);
-      logWarn(`Acconti INPS stimati da F24 totale: € ${accInpsStima.toLocaleString('it-IT',{minimumFractionDigits:2})} — verifica con la dichiarazione`);
-    }
-
+    const accInpsStima = extracted.totaleVersato - (extracted.accImp || 0);
+    if (accInpsStima > 0 && !extracted.inpsDed) setField('i-acc-inps', 'accInps', accInpsStima);
   } else {
-    // Nessun F24: usa solo dati dichiarazione
     if (extracted.inpsDed) setField('i-inps-ded', 'inpsDed', extracted.inpsDed);
     if (extracted.accImp)  setField('i-acc-imp',  'accImp',  extracted.accImp);
   }
 
-  // 6. Credito residuo (LM43 - LM44)
   if (extracted.credito != null) setField('i-credito', 'credito', extracted.credito);
 
-  // 7. Dati anno precedente per il confronto grafico
   if (extracted.redLordo) prevYear.redLordo = extracted.redLordo;
   if (extracted.imposta)  prevYear.imposta  = extracted.imposta;
   if (extracted.inpsDov)  prevYear.inpsDov  = extracted.inpsDov;
   if (extracted.fatt)     prevYear.fatt     = extracted.fatt;
-
-  // Conta campi compilati
-  const filled = ['i-fatt','i-bolli','i-inps-ded','i-acc-imp','i-acc-inps','i-credito']
-    .filter(id => document.getElementById(id)?.classList.contains('auto-filled')).length;
-
-  if (filled > 0) logOk(`Pre-compilati ${filled} campi. Controlla e correggi se necessario, poi premi "Calcola".`);
-  else logWarn('Nessun campo pre-compilato — i dati nei PDF potrebbero non essere stati riconosciuti. Compila manualmente.');
 }
-
 
 /* ── CALCOLO ─────────────────────────────────────────────────── */
 function gv(id) { return parseFloat(document.getElementById(id).value) || 0; }
@@ -1163,14 +882,25 @@ function calcola() {
 
   const bolliFatt = nBolli * 2;
   const fattTot   = fatt + bolliFatt;
+  
+  // Imponibili e Divenute
   const redLordo  = fattTot * coeff / 100;
   const redNetto  = Math.max(0, redLordo - inpsDed);
+  
+  // Totali dovuti
   const imposta   = Math.max(0, redNetto * aliq / 100);
   const inpsDov   = redLordo * inpsAliq / 100;
+  
+  // Saldi a debito
   const saldoImp  = Math.max(0, imposta - accImp - credito);
   const saldoInps = Math.max(0, inpsDov - accInps);
+  
+  // Acconti:
+  // Imposta Sostitutiva = 100% totale diviso in due rate (50% giugno + 50% novembre)
   const acc1Imp   = imposta * 0.5;
-  const acc1Inps  = inpsDov * 0.5;
+  // INPS Gestione Separata = 80% totale diviso in due rate (40% giugno + 40% novembre)
+  const acc1Inps  = inpsDov * 0.4; 
+
   const f1 = saldoImp + acc1Imp + saldoInps + acc1Inps;
   const f2 = acc1Imp + acc1Inps;
 
@@ -1261,7 +991,7 @@ function renderCfr(s) {
   const prevData = hasPrev ? [Math.round(pFatt), 0, Math.round(pImposta), Math.round(pInps), Math.round(pReale)] : null;
 
   if (chartCfr) {
-    if (prevData) chartCfr.data.datasets[0].data = prevData;
+    chartCfr.data.datasets[0].data = prevData || [0,0,0,0,0]; // Ripristina dati vecchi al ricalcolo
     chartCfr.data.datasets[1].data = newData;
     chartCfr.update();
   } else {
