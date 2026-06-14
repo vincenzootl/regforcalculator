@@ -71,9 +71,10 @@ Il file è un Excel-XML (SpreadsheetML) con namespace urn:schemas-microsoft-com:
 - inpsDov = redLordo × inpsAliq/100
 - saldoImp = max(0, imposta − accImp − credito)
 - saldoInps = max(0, inpsDov − accInps)
-- acc1Imp = imposta × 50%, acc1Inps = inpsDov × 50%
+- acc1Imp = floor(imposta × 50%), acc2Imp = imposta − acc1Imp
+- acc1Inps = floor(inpsDov × 40%), acc2Inps = round(inpsDov × 80% − acc1Inps)
 - F24 giugno = saldoImp + acc1Imp + saldoInps + acc1Inps
-- F24 dicembre = acc1Imp + acc1Inps
+- F24 novembre = acc2Imp + acc2Inps
 
 ## Design
 - Stile Isomorphic Flat (no shadow pesanti, no bordi doppi)

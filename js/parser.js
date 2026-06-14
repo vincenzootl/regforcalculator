@@ -758,7 +758,7 @@ function prefillFields() {
   } else if (hasRicevuta || extracted.isGrafico) {
     const totF24  = extracted.totaleVersato || 0;
     const accImp  = extracted.accImp || 0;
-    const credito = (extracted.lm43 > 0) ? extracted.lm43 : (extracted.credito || 0);
+    const credito = (extracted.credito != null) ? extracted.credito : 0;
     const impCash = Math.max(0, accImp - credito);
     const inpsDed = Math.max(0, totF24 - impCash);
     
@@ -786,7 +786,7 @@ function prefillFields() {
   }
 
   // Credito anno precedente
-  const creditoVal = (extracted.lm43 > 0) ? extracted.lm43 : (extracted.credito != null ? extracted.credito : null);
+  const creditoVal = (extracted.credito != null) ? extracted.credito : null;
   if (creditoVal != null) setField('i-credito', 'credito', creditoVal);
 
   // Dati anno precedente per il confronto

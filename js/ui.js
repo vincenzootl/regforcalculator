@@ -42,8 +42,8 @@ function renderF24(s) {
   document.getElementById('f1r4').textContent = fmtEur(s.acc1Inps);
   document.getElementById('f1tot').textContent = fmtEur(s.f1);
   document.getElementById('f2-badge').textContent  = fmtEur(s.f2);
-  document.getElementById('f2r1').textContent = fmtEur(s.acc1Imp);
-  document.getElementById('f2r2').textContent = fmtEur(s.acc1Inps);
+  document.getElementById('f2r1').textContent = fmtEur(s.acc2Imp);
+  document.getElementById('f2r2').textContent = fmtEur(s.acc2Inps);
   document.getElementById('f2tot').textContent = fmtEur(s.f2);
   document.getElementById('f24-tot').textContent   = fmtInt(s.f1 + s.f2);
   document.getElementById('f24-saldi').textContent = fmtInt(s.saldoImp + s.saldoInps);
