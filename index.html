@@ -3,1068 +3,287 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Calcolatore Regime Forfettario</title>
-<style>
-:root {
-  --bg:#F7F9FC; --surface:#FFFFFF; --border:#E2E8F0;
-  --blue-50:#EFF6FF; --blue-100:#DBEAFE; --blue-200:#BFDBFE;
-  --blue-500:#3B82F6; --blue-600:#2563EB; --blue-700:#1D4ED8;
-  --slate-300:#CBD5E1; --slate-400:#94A3B8; --slate-500:#64748B;
-  --slate-600:#475569; --slate-700:#334155; --slate-900:#0F172A;
-  --amber-50:#FFFBEB; --amber-500:#F59E0B; --amber-700:#B45309;
-  --red-50:#FEF2F2; --red-100:#FEE2E2; --red-600:#DC2626; --red-700:#B91C1C;
-  --green-50:#F0FDF4; --green-200:#BBF7D0; --green-600:#16A34A;
-  --orange-50:#FFF7ED; --orange-200:#FED7AA; --orange-600:#EA580C;
-  --r-sm:6px; --r-md:10px; --r-lg:14px; --r-xl:18px;
-  --sh-sm:0 1px 3px rgba(15,23,42,.06),0 1px 2px rgba(15,23,42,.04);
-  --sh-md:0 4px 16px rgba(15,23,42,.09),0 2px 4px rgba(15,23,42,.05);
-}
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-html{font-size:16px}
-body{font-family:-apple-system,BlinkMacSystemFont,'Inter','Segoe UI',sans-serif;background:var(--bg);color:var(--slate-900);min-height:100vh;padding:1.5rem 1rem 4rem;line-height:1.5;-webkit-font-smoothing:antialiased}
-.shell{max-width:700px;margin:0 auto}
-
-/* HEADER */
-.page-header{margin-bottom:1.5rem}
-.page-header h1{font-size:1.35rem;font-weight:700;letter-spacing:-.02em;margin-bottom:.2rem}
-.page-header p{font-size:.85rem;color:var(--slate-500)}
-
-/* STEPPER */
-.stepper{display:flex;align-items:center;gap:0;margin-bottom:1.5rem;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);padding:.4rem;box-shadow:var(--sh-sm);overflow-x:auto;scrollbar-width:none}
-.stepper::-webkit-scrollbar{display:none}
-.step-btn{flex:1;min-width:80px;display:flex;flex-direction:column;align-items:center;gap:.15rem;padding:.45rem .3rem;border-radius:var(--r-lg);border:none;background:transparent;cursor:pointer;transition:all .15s;position:relative}
-.step-btn .s-num{width:22px;height:22px;border-radius:50%;border:1.5px solid var(--slate-300);display:flex;align-items:center;justify-content:center;font-size:.65rem;font-weight:700;color:var(--slate-400);background:var(--bg);transition:all .15s;flex-shrink:0}
-.step-btn .s-label{font-size:.65rem;font-weight:600;color:var(--slate-400);white-space:nowrap;transition:color .15s}
-.step-btn.active .s-num{background:var(--blue-600);border-color:var(--blue-600);color:#fff}
-.step-btn.active .s-label{color:var(--blue-600)}
-.step-btn.done .s-num{background:var(--green-600);border-color:var(--green-600);color:#fff}
-.step-btn.done .s-label{color:var(--green-600)}
-.step-btn:not(.active):not(.done):hover .s-num{border-color:var(--blue-300,#93C5FD)}
-
-/* CARD */
-.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);box-shadow:var(--sh-sm);padding:1.25rem 1.5rem;margin-bottom:1rem}
-.card-title{font-size:.62rem;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--slate-400);margin-bottom:1rem}
-
-/* UPLOAD ZONE */
-.upload-grid{display:grid;grid-template-columns:1fr 1fr;gap:.75rem}
-@media(max-width:500px){.upload-grid{grid-template-columns:1fr}}
-.upload-zone{border:1.5px dashed var(--border);border-radius:var(--r-lg);padding:1.1rem 1rem;text-align:center;cursor:pointer;transition:all .2s;background:var(--bg);position:relative}
-.upload-zone:hover,.upload-zone.drag{border-color:var(--blue-500);background:var(--blue-50)}
-.upload-zone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
-.upload-zone .uz-icon{font-size:1.4rem;margin-bottom:.35rem;display:block}
-.upload-zone .uz-title{font-size:.78rem;font-weight:600;color:var(--slate-700);margin-bottom:.15rem}
-.upload-zone .uz-sub{font-size:.68rem;color:var(--slate-400)}
-.upload-zone.has-file{border-color:var(--green-200);border-style:solid;background:var(--green-50)}
-.upload-zone.has-file .uz-title{color:var(--green-600)}
-.file-badge{display:inline-flex;align-items:center;gap:.3rem;font-size:.68rem;background:var(--green-200);color:#166534;border-radius:99px;padding:.15rem .5rem;margin-top:.3rem;font-weight:500}
-.file-badge .rm{cursor:pointer;font-size:.75rem;opacity:.6;margin-left:.1rem;border:none;background:none;color:inherit;line-height:1;padding:0}
-.file-badge .rm:hover{opacity:1}
-
-/* EXTRACT STATUS */
-.extract-log{background:var(--slate-900);border-radius:var(--r-lg);padding:1rem 1.15rem;font-family:'SF Mono','Fira Code',monospace;font-size:.72rem;color:#94A3B8;line-height:1.7;max-height:160px;overflow-y:auto;margin-top:.75rem;display:none}
-.extract-log.visible{display:block}
-.log-ok{color:#4ADE80} .log-warn{color:#FBBF24} .log-err{color:#F87171} .log-info{color:#60A5FA}
-
-/* EXTRACTED DATA PILLS */
-.extracted-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:.6rem;margin-top:.75rem}
-.ex-pill{background:var(--blue-50);border:1px solid var(--blue-100);border-radius:var(--r-md);padding:.65rem .85rem}
-.ex-pill-src{font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--blue-500);margin-bottom:.15rem}
-.ex-pill-lbl{font-size:.7rem;color:var(--slate-500);margin-bottom:.15rem}
-.ex-pill-val{font-size:1rem;font-weight:700;color:var(--blue-700)}
-
-/* FIELDS */
-.field-grid{display:grid;grid-template-columns:1fr 1fr;gap:.75rem}
-@media(max-width:480px){.field-grid{grid-template-columns:1fr}}
-.field{display:flex;flex-direction:column;gap:.3rem}
-.field-label-row{display:flex;align-items:center;gap:.35rem}
-.field-label{font-size:.78rem;font-weight:600;color:var(--slate-700)}
-.field-src{font-size:.6rem;font-weight:700;padding:.1rem .35rem;border-radius:99px;background:var(--orange-200);color:var(--orange-600);text-transform:uppercase;letter-spacing:.04em}
-.field-src.manual{background:var(--slate-300);color:var(--slate-600)}
-.helper-btn{width:16px;height:16px;border-radius:50%;border:1.5px solid var(--slate-300);background:transparent;color:var(--slate-400);font-size:.6rem;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s;line-height:1}
-.helper-btn:hover{border-color:var(--blue-500);color:var(--blue-500);background:var(--blue-50)}
-.field input[type=number]{font-size:.9rem;font-weight:500;color:var(--slate-900);padding:.55rem .75rem;border:1.5px solid var(--border);border-radius:var(--r-md);background:var(--bg);width:100%;outline:none;-moz-appearance:textfield;transition:border-color .15s,box-shadow .15s}
-.field input[type=number]::-webkit-outer-spin-button,.field input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}
-.field input[type=number]:focus{border-color:var(--blue-500);box-shadow:0 0 0 3px rgba(59,130,246,.12);background:var(--surface)}
-.field input.auto-filled{border-color:var(--orange-200);background:var(--orange-50)}
-
-/* BUTTONS */
-.btn{display:inline-flex;align-items:center;gap:.4rem;padding:.6rem 1.1rem;font-size:.85rem;font-weight:600;border-radius:var(--r-md);border:none;cursor:pointer;transition:all .15s}
-.btn-primary{background:var(--blue-600);color:#fff;box-shadow:0 2px 8px rgba(37,99,235,.25)}
-.btn-primary:hover{background:var(--blue-700)}
-.btn-primary:active{transform:scale(.99)}
-.btn-secondary{background:var(--surface);color:var(--slate-700);border:1px solid var(--border)}
-.btn-secondary:hover{background:var(--bg)}
-.btn-lg{width:100%;justify-content:center;padding:.75rem;font-size:.95rem;margin-top:1rem}
-.btn-row{display:flex;gap:.6rem;margin-top:1rem}
-@media(max-width:420px){.btn-row{flex-direction:column}}
-
-/* RESULT CARDS */
-.f24-trio{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.65rem;margin-bottom:1rem}
-@media(max-width:500px){.f24-trio{grid-template-columns:1fr}}
-.f24-card{border-radius:var(--r-lg);padding:1.1rem 1.15rem;border:1px solid var(--border);background:var(--surface)}
-.f24-card.highlight{background:var(--blue-600);border-color:var(--blue-600)}
-.f24-eyebrow{font-size:.62rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--slate-400);margin-bottom:.2rem}
-.f24-card.highlight .f24-eyebrow{color:rgba(255,255,255,.6)}
-.f24-date{font-size:.7rem;color:var(--slate-400);margin-bottom:.55rem}
-.f24-card.highlight .f24-date{color:rgba(255,255,255,.5)}
-.f24-amount{font-size:1.45rem;font-weight:700;color:var(--blue-600);letter-spacing:-.02em;line-height:1}
-.f24-card.highlight .f24-amount{color:#fff;font-size:1.65rem}
-
-/* MINI CARDS */
-.mini-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:.6rem;margin-bottom:1rem}
-.mini-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:.85rem .9rem}
-.mini-lbl{font-size:.62rem;color:var(--slate-400);font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.25rem}
-.mini-val{font-size:1.05rem;font-weight:700;color:var(--slate-900);letter-spacing:-.01em}
-.mini-sub{font-size:.68rem;color:var(--slate-400);margin-top:.15rem}
-.mini-card.blue{border-color:var(--blue-100);background:var(--blue-50)}.mini-card.blue .mini-lbl{color:var(--blue-500)}.mini-card.blue .mini-val{color:var(--blue-700)}
-.mini-card.amber{border-color:#FDE68A;background:var(--amber-50)}.mini-card.amber .mini-lbl{color:var(--amber-500)}.mini-card.amber .mini-val{color:var(--amber-700)}
-.mini-card.red{border-color:var(--red-100);background:var(--red-50)}.mini-card.red .mini-lbl{color:var(--red-600)}.mini-card.red .mini-val{color:var(--red-700)}
-.mini-card.green{border-color:var(--green-200);background:var(--green-50)}.mini-card.green .mini-lbl{color:var(--green-600)}.mini-card.green .mini-val{color:var(--green-600)}
-
-/* F24 BOX */
-.f24-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;margin-bottom:.65rem}
-.f24-box-hdr{padding:.65rem 1rem;background:var(--bg);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
-.f24-box-title{font-size:.78rem;font-weight:700;color:var(--slate-700)}
-.f24-box-badge{font-size:.7rem;font-weight:600;padding:.18rem .5rem;border-radius:99px;background:var(--blue-50);color:var(--blue-600)}
-.f24-line{display:flex;align-items:center;gap:.6rem;padding:.5rem 1rem;border-bottom:1px solid var(--border);font-size:.8rem}
-.f24-line:last-child{border-bottom:none}
-.f24-cod{font-family:'SF Mono','Fira Code',monospace;font-size:.68rem;color:var(--slate-400);min-width:32px;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:.1rem .28rem;text-align:center}
-.f24-desc{color:var(--slate-600);flex:1;font-size:.78rem}
-.f24-amt{font-weight:600;color:var(--slate-900);white-space:nowrap;font-size:.85rem}
-.f24-total-row{display:flex;justify-content:space-between;align-items:center;padding:.65rem 1rem;background:var(--blue-50);border-top:1.5px solid var(--blue-100);font-size:.88rem;font-weight:700;color:var(--blue-700)}
-
-/* STEP ROWS */
-.step-list{display:flex;flex-direction:column}
-.step-row{display:flex;justify-content:space-between;align-items:baseline;padding:.45rem 0;border-bottom:1px solid var(--border);gap:1rem;font-size:.85rem}
-.step-row:last-child{border-bottom:none}
-.step-row.sub-total{background:var(--blue-50);margin:.2rem -.25rem;padding:.4rem .25rem;border-radius:var(--r-sm);border:none}
-.step-lbl{color:var(--slate-600);flex:1}
-.step-lbl.op{color:var(--slate-400);padding-left:.7rem}
-.step-val{font-weight:600;color:var(--slate-900);white-space:nowrap}
-.step-val.neg{color:var(--slate-400)}
-.step-val.accent{color:var(--blue-600)}
-.step-divider{border:none;border-top:1.5px dashed var(--border);margin:.35rem 0}
-
-/* INFO BOX */
-.info-box{background:var(--blue-50);border:1px solid var(--blue-100);border-radius:var(--r-md);padding:.75rem 1rem;font-size:.78rem;color:var(--blue-700);line-height:1.6;margin-bottom:.75rem}
-.info-box strong{font-weight:700}
-
-/* ACCENT STRIP */
-.accent-strip{background:var(--orange-50);border:1px solid var(--orange-200);border-radius:var(--r-md);padding:.75rem 1rem;font-size:.78rem;color:var(--orange-600);line-height:1.6;margin-bottom:.75rem}
-
-/* BADGE */
-.badge{display:inline-block;font-size:.62rem;font-weight:700;padding:.12rem .42rem;border-radius:99px;margin-left:.3rem;vertical-align:middle}
-.badge.up{background:var(--red-100);color:var(--red-600)}
-.badge.dn{background:var(--green-50);color:var(--green-600);border:1px solid var(--green-200)}
-
-/* ACCANTONAMENTO */
-.acc-banner{background:var(--blue-600);border-radius:var(--r-lg);padding:1.1rem 1.25rem;display:flex;justify-content:space-between;align-items:center;gap:1rem;margin-bottom:1rem}
-.acc-label{font-size:.68rem;font-weight:600;color:rgba(255,255,255,.6);text-transform:uppercase;letter-spacing:.06em;margin-bottom:.2rem}
-.acc-sub{font-size:.73rem;color:rgba(255,255,255,.5);margin-top:.15rem}
-.acc-val{font-size:1.7rem;font-weight:700;color:#fff;white-space:nowrap;letter-spacing:-.02em}
-.soglia-bar-bg{height:8px;background:var(--border);border-radius:99px;overflow:hidden;margin:.5rem 0}
-.soglia-bar-fill{height:100%;background:var(--blue-500);border-radius:99px;transition:width .4s ease}
-.soglia-labels{display:flex;justify-content:space-between;font-size:.7rem;color:var(--slate-400)}
-
-/* CHART */
-.chart-wrap{width:100%;height:220px;position:relative;margin:.5rem 0 0}
-
-/* TOOLTIP MODAL */
-.tip-overlay{display:none;position:fixed;inset:0;z-index:200;align-items:center;justify-content:center;padding:1rem;background:rgba(15,23,42,.35);backdrop-filter:blur(2px)}
-.tip-overlay.open{display:flex}
-.tip-box{background:var(--surface);border-radius:var(--r-xl);box-shadow:var(--sh-md);max-width:360px;width:100%;padding:1.5rem;position:relative;animation:popIn .18s ease}
-@keyframes popIn{from{opacity:0;transform:scale(.96) translateY(6px)}to{opacity:1;transform:scale(1) translateY(0)}}
-.tip-close{position:absolute;top:.9rem;right:.9rem;width:26px;height:26px;border-radius:50%;border:none;background:var(--bg);color:var(--slate-500);font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .15s}
-.tip-close:hover{background:var(--border)}
-.tip-icon{width:36px;height:36px;border-radius:50%;background:var(--blue-50);display:flex;align-items:center;justify-content:center;font-size:1.1rem;margin-bottom:.75rem}
-.tip-title{font-size:.95rem;font-weight:700;color:var(--slate-900);margin-bottom:.4rem}
-.tip-body{font-size:.83rem;color:var(--slate-600);line-height:1.6}
-.tip-example{margin-top:.75rem;padding:.65rem .85rem;background:var(--blue-50);border-left:3px solid var(--blue-500);border-radius:0 var(--r-sm) var(--r-sm) 0;font-size:.78rem;color:var(--blue-700);font-weight:500;line-height:1.5}
-
-/* SECTION NAV */
-.section{display:none}.section.active{display:block}
-.hidden{display:none}
-.note{font-size:.7rem;color:var(--slate-400);margin-top:.4rem;line-height:1.5}
-.divider{border:none;border-top:1px solid var(--border);margin:1rem 0}
-</style>
+<title>Calcolatore Regime Forfettario — Strumento gratuito per partite IVA</title>
+<meta name="description" content="Calcola in modo semplice imposta sostitutiva, contributi INPS e F24 del regime forfettario. Carica i tuoi PDF fiscali per la pre-compilazione automatica. Dati 100% privati, elaborati solo nel tuo browser.">
+<link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-<div class="shell">
 
-<div class="page-header">
-  <h1>Calcolatore regime forfettario</h1>
-  <p>Carica i tuoi documenti fiscali — i campi vengono compilati automaticamente.</p>
-</div>
+<!-- NAV -->
+<nav class="landing-nav">
+  <a href="index.html" class="logo">regfor<span>calculator</span></a>
+  <a href="calcolatore.html" class="cta-nav">Apri il calcolatore →</a>
+</nav>
 
-<div class="stepper" role="tablist">
-  <button class="step-btn active" onclick="goStep(0)" role="tab" aria-selected="true">
-    <div class="s-num">1</div><div class="s-label">Documenti</div>
-  </button>
-  <button class="step-btn" onclick="goStep(1)" role="tab">
-    <div class="s-num">2</div><div class="s-label">Parametri</div>
-  </button>
-  <button class="step-btn" onclick="goStep(2)" role="tab">
-    <div class="s-num">3</div><div class="s-label">Calcolo</div>
-  </button>
-  <button class="step-btn" onclick="goStep(3)" role="tab">
-    <div class="s-num">4</div><div class="s-label">F24 2026</div>
-  </button>
-  <button class="step-btn" onclick="goStep(4)" role="tab">
-    <div class="s-num">5</div><div class="s-label">Confronto</div>
-  </button>
-  <button class="step-btn" onclick="goStep(5)" role="tab">
-    <div class="s-num">6</div><div class="s-label">Accantonamento</div>
-  </button>
-</div>
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-tag">Strumento gratuito · Solo browser · Zero dati inviati</div>
+  <h1>Il calcolatore del<br><span>regime forfettario</span><br>che capisce i tuoi PDF</h1>
+  <p>Carica i tuoi F24, la dichiarazione precompilata e l'export di FattureInCloud.
+     I campi si compilano da soli. Tu controlli e calcoli.</p>
+  <a href="calcolatore.html" class="hero-cta">
+    Inizia subito — è gratis
+    <span style="font-size:1.1rem">→</span>
+  </a>
+  <div class="hero-note">Nessuna registrazione. Nessun dato inviato. Funziona offline.</div>
 
-<div id="step-0" class="section active">
-  <div class="card">
-    <div class="card-title">Carica i tuoi documenti fiscali</div>
-    <p style="font-size:.82rem;color:var(--slate-500);margin-bottom:1rem;line-height:1.6">
-      I documenti vengono letti <strong>solo nel tuo browser</strong> — nessun dato viene inviato a server esterni.
-      Puoi caricare uno o più file; i dati estratti pre-compileranno i campi nel passo successivo.
-    </p>
-
-    <div class="upload-grid">
-      <div class="upload-zone" id="uz-f24" ondragover="dragOver(event,this)" ondragleave="dragLeave(this)" ondrop="dropFile(event,'f24')">
-        <input type="file" accept=".pdf" onchange="handleFile(event,'f24')" multiple>
-        <span class="uz-icon">📄</span>
-        <div class="uz-title">F24 — Ricevute di pagamento</div>
-        <div class="uz-sub">PDF · Estrae acconti versati per codice tributo</div>
-        <div id="f24-badge"></div>
-      </div>
-
-      <div class="upload-zone" id="uz-rpf" ondragover="dragOver(event,this)" ondragleave="dragLeave(this)" ondrop="dropFile(event,'rpf')">
-        <input type="file" accept=".pdf" onchange="handleFile(event,'rpf')" multiple>
-        <span class="uz-icon">📋</span>
-        <div class="uz-title">Dichiarazione precompilata</div>
-        <div class="uz-sub">PDF · Estrae righi LM34, LM35, LM43, LM45</div>
-        <div id="rpf-badge"></div>
-      </div>
-
-      <div class="upload-zone" id="uz-redditi" ondragover="dragOver(event,this)" ondragleave="dragLeave(this)" ondrop="dropFile(event,'redditi')">
-        <input type="file" accept=".pdf" onchange="handleFile(event,'redditi')" multiple>
-        <span class="uz-icon">📑</span>
-        <div class="uz-title">Modello Redditi (quadro LM/RR)</div>
-        <div class="uz-sub">PDF · Estrae reddito, imposta, contributi INPS</div>
-        <div id="redditi-badge"></div>
-      </div>
-
-      <div class="upload-zone" id="uz-fic" ondragover="dragOver(event,this)" ondragleave="dragLeave(this)" ondrop="dropFile(event,'fic')">
-        <input type="file" accept=".xml,.xls,.xlsx,.csv" onchange="handleFile(event,'fic')" multiple>
-        <span class="uz-icon">🧾</span>
-        <div class="uz-title">Export FattureInCloud</div>
-        <div class="uz-sub">XML · Calcola fatturato e conta i bolli</div>
-        <div id="fic-badge"></div>
-      </div>
+  <!-- Mockup visivo -->
+  <div class="hero-mockup">
+    <div class="mockup-bar">
+      <div class="mockup-dot" style="background:#FF6058"></div>
+      <div class="mockup-dot" style="background:#FEBC2E"></div>
+      <div class="mockup-dot" style="background:#2AC940"></div>
     </div>
-
-    <div class="extract-log" id="extract-log"></div>
-
-    <div id="extracted-pills" class="extracted-grid" style="display:none"></div>
-  </div>
-
-  <div class="btn-row">
-    <button class="btn btn-secondary" onclick="skipDocs()">Salta — inserisco manualmente</button>
-    <button class="btn btn-primary" onclick="goStep(1)" id="btn-next-docs" style="margin-left:auto">Avanti →</button>
-  </div>
-</div>
-
-<div id="step-1" class="section">
-  <div class="card">
-    <div class="card-title">Dati fatturazione anno corrente</div>
-    <div class="field-grid">
-      <div class="field">
-        <div class="field-label-row">
-          <span class="field-label">Fatturato (€)</span>
-          <span class="field-src manual" id="src-fatt">manuale</span>
-          <button class="helper-btn" onclick="openTip('fatt')">?</button>
-        </div>
-        <input type="number" id="i-fatt" value="" placeholder="es. 25.000" min="0" step="1">
+    <div class="mockup-step-row">
+      <div class="mockup-step active">① Documenti</div>
+      <div class="mockup-step">② Parametri</div>
+      <div class="mockup-step">③ Calcolo</div>
+      <div class="mockup-step">④ F24 2026</div>
+    </div>
+    <div class="mockup-cards">
+      <div class="mockup-card c1">
+        <div class="mockup-card-lbl">F24 giugno</div>
+        <div class="mockup-card-val">€ 8.553</div>
       </div>
-      <div class="field">
-        <div class="field-label-row">
-          <span class="field-label">N. fatture con bollo</span>
-          <span class="field-src manual" id="src-bolli">manuale</span>
-          <button class="helper-btn" onclick="openTip('bolli')">?</button>
-        </div>
-        <input type="number" id="i-bolli" value="" placeholder="es. 20" min="0" step="1">
+      <div class="mockup-card c2">
+        <div class="mockup-card-lbl">F24 dicembre</div>
+        <div class="mockup-card-val">€ 4.547</div>
       </div>
-      <div class="field">
-        <div class="field-label-row">
-          <span class="field-label">Coefficiente redditività (%)</span>
-          <button class="helper-btn" onclick="openTip('coeff')">?</button>
-        </div>
-        <input type="number" id="i-coeff" value="78" min="1" max="100" step="0.01">
-      </div>
-      <div class="field">
-        <div class="field-label-row">
-          <span class="field-label">Imposta sostitutiva (%)</span>
-          <button class="helper-btn" onclick="openTip('aliq')">?</button>
-        </div>
-        <input type="number" id="i-aliq" value="15" min="5" max="15" step="5">
+      <div class="mockup-card c3">
+        <div class="mockup-card-lbl">Totale 2026</div>
+        <div class="mockup-card-val">€ 13.100</div>
       </div>
     </div>
   </div>
+</section>
 
-  <div class="card">
-    <div class="card-title">Contributi &amp; acconti già versati</div>
-    <div class="field-grid">
-      <div class="field">
-        <div class="field-label-row">
-          <span class="field-label">INPS deducibili (€)</span>
-          <span class="field-src manual" id="src-inpsDed">manuale</span>
-          <button class="helper-btn" onclick="openTip('inpsDed')">?</button>
-        </div>
-        <input type="number" id="i-inps-ded" value="" placeholder="es. 4.466" min="0" step="0.01">
+<!-- FEATURES -->
+<section class="features">
+  <div class="features-inner">
+    <div class="section-label">Funzionalità</div>
+    <div class="section-title">Tutto quello che ti serve, in un'unica schermata</div>
+    <div class="section-sub">Dal caricamento dei documenti al piano di accantonamento mensile.</div>
+    <div class="features-grid">
+      <div class="feat-card">
+        <div class="feat-icon">📂</div>
+        <div class="feat-title">Estrazione automatica</div>
+        <div class="feat-desc">Carica i PDF fiscali e i campi si pre-compilano soli. Nessuna digitazione manuale di dati che hai già.</div>
       </div>
-      <div class="field">
-        <div class="field-label-row">
-          <span class="field-label">Aliquota INPS GS (%)</span>
-          <button class="helper-btn" onclick="openTip('inpsAliq')">?</button>
-        </div>
-        <input type="number" id="i-inps-aliq" value="26.07" min="20" max="35" step="0.01">
+      <div class="feat-card">
+        <div class="feat-icon">🧮</div>
+        <div class="feat-title">Calcolo completo</div>
+        <div class="feat-desc">Imposta sostitutiva, contributi INPS Gestione Separata, saldi e acconti. Con spiegazione passo passo.</div>
       </div>
-      <div class="field">
-        <div class="field-label-row">
-          <span class="field-label">Acconti imp. sost. (€)</span>
-          <span class="field-src manual" id="src-accImp">manuale</span>
-          <button class="helper-btn" onclick="openTip('accImp')">?</button>
-        </div>
-        <input type="number" id="i-acc-imp" value="" placeholder="es. 800" min="0" step="0.01">
+      <div class="feat-card">
+        <div class="feat-icon">📄</div>
+        <div class="feat-title">F24 pronti</div>
+        <div class="feat-desc">Visualizza i due F24 dell'anno (giugno e dicembre) con i codici tributo corretti e gli importi esatti.</div>
       </div>
-      <div class="field">
-        <div class="field-label-row">
-          <span class="field-label">Acconti INPS versati (€)</span>
-          <span class="field-src manual" id="src-accInps">manuale</span>
-          <button class="helper-btn" onclick="openTip('accInps')">?</button>
-        </div>
-        <input type="number" id="i-acc-inps" value="" placeholder="es. 3.784" min="0" step="0.01">
+      <div class="feat-card">
+        <div class="feat-icon">💰</div>
+        <div class="feat-title">Piano di accantonamento</div>
+        <div class="feat-desc">Scopri quanto mettere da parte ogni mese per non farti trovare impreparato alla scadenza di giugno.</div>
       </div>
-      <div class="field">
-        <div class="field-label-row">
-          <span class="field-label">Credito anno prec. (€)</span>
-          <span class="field-src manual" id="src-credito">manuale</span>
-          <button class="helper-btn" onclick="openTip('credito')">?</button>
-        </div>
-        <input type="number" id="i-credito" value="0" min="0" step="0.01">
+      <div class="feat-card">
+        <div class="feat-icon">📊</div>
+        <div class="feat-title">Confronto annuale</div>
+        <div class="feat-desc">Visualizza come è cambiato il tuo carico fiscale rispetto all'anno precedente su tutti gli indicatori chiave.</div>
       </div>
-      <div class="field">
-        <div class="field-label-row">
-          <span class="field-label">Mesi al F24 di giugno</span>
-          <button class="helper-btn" onclick="openTip('mesi')">?</button>
-        </div>
-        <input type="number" id="i-mesi" value="" placeholder="es. 6" min="1" max="12" step="1">
+      <div class="feat-card">
+        <div class="feat-icon">❓</div>
+        <div class="feat-title">Helper contestuali</div>
+        <div class="feat-desc">Ogni campo ha un pulsante ? che spiega in linguaggio semplice cosa inserire e da dove prendere il dato.</div>
       </div>
     </div>
+  </div>
+</section>
 
-    <div class="btn-row">
-      <button class="btn btn-secondary" onclick="goStep(0)">← Documenti</button>
-      <button class="btn btn-primary btn-lg" onclick="calcola()" style="margin-top:0;flex:1">Calcola →</button>
+<!-- DOCUMENTI SUPPORTATI -->
+<section class="docs-section">
+  <div class="docs-inner">
+    <div class="section-label">Documenti supportati</div>
+    <div class="section-title">Carica quello che hai già</div>
+    <div class="section-sub">Il calcolatore riconosce automaticamente il tipo di file e sa cosa estrarre da ciascuno.</div>
+    <div class="docs-grid">
+      <div class="doc-card">
+        <div class="doc-icon">📄</div>
+        <div>
+          <div class="doc-title">F24 — Ricevute di pagamento</div>
+          <div class="doc-desc">PDF · Estrae il totale versato da ogni ricevuta (importo versamento)</div>
+        </div>
+      </div>
+      <div class="doc-card">
+        <div class="doc-icon">📋</div>
+        <div>
+          <div class="doc-title">Dichiarazione precompilata</div>
+          <div class="doc-desc">PDF · Estrae i righi LM34, LM35, LM43, LM44, LM45 e calcola il credito residuo</div>
+        </div>
+      </div>
+      <div class="doc-card">
+        <div class="doc-icon">📑</div>
+        <div>
+          <div class="doc-title">Modello Redditi (quadro LM/RR)</div>
+          <div class="doc-desc">PDF · Estrae reddito lordo, imposta sostitutiva e contributi INPS dovuti</div>
+        </div>
+      </div>
+      <div class="doc-card">
+        <div class="doc-icon">🧾</div>
+        <div>
+          <div class="doc-title">Export FattureInCloud</div>
+          <div class="doc-desc">XML · Calcola il fatturato annuo totale e conta le fatture per stimare le marche da bollo</div>
+        </div>
+      </div>
     </div>
   </div>
-</div>
+</section>
 
-<div id="step-2" class="section">
-  <div class="accent-strip">
-    <strong>Perché il totale da versare supera il carico fiscale reale?</strong><br>
-    Il F24 include sia i <em>saldi dell'anno corrente</em> che gli <em>acconti anticipati per l'anno prossimo</em>.
-    Gli acconti non sono costi extra: saranno già pagati quando compilerai la dichiarazione del prossimo anno.
+<!-- COME FUNZIONA -->
+<section class="how-section">
+  <div class="how-inner">
+    <div class="section-label">Come funziona</div>
+    <div class="section-title">Quattro passi, cinque minuti</div>
+    <div class="how-steps">
+      <div class="how-step">
+        <div class="how-num">1</div>
+        <div class="how-content">
+          <div class="how-title">Carica i documenti</div>
+          <div class="how-desc">Trascina o clicca per caricare i PDF fiscali e l'export XML di FattureInCloud. Puoi caricare uno o tutti e quattro i tipi — il calcolatore prende il meglio da ciascuno.</div>
+        </div>
+      </div>
+      <div class="how-step">
+        <div class="how-num">2</div>
+        <div class="how-content">
+          <div class="how-title">Controlla i parametri</div>
+          <div class="how-desc">I campi vengono pre-compilati con i dati estratti automaticamente (evidenziati in arancione). Puoi correggerli o integrarli manualmente prima di procedere.</div>
+        </div>
+      </div>
+      <div class="how-step">
+        <div class="how-num">3</div>
+        <div class="how-content">
+          <div class="how-title">Calcola</div>
+          <div class="how-desc">Un clic e ottieni il calcolo completo con tutti i passaggi visibili: dal fatturato al reddito netto, dall'imposta sostitutiva ai saldi F24.</div>
+        </div>
+      </div>
+      <div class="how-step">
+        <div class="how-num">4</div>
+        <div class="how-content">
+          <div class="how-title">Pianifica i versamenti</div>
+          <div class="how-desc">Vedi i F24 dettagliati con codici tributo, il confronto con l'anno precedente e il piano di accantonamento mensile per non farti trovare impreparato.</div>
+        </div>
+      </div>
+    </div>
   </div>
+</section>
 
-  <div class="f24-trio">
-    <div class="f24-card"><div class="f24-eyebrow">F24 giugno</div><div class="f24-date">Scad. 30/06</div><div class="f24-amount" id="r-f1">—</div></div>
-    <div class="f24-card"><div class="f24-eyebrow">F24 dicembre</div><div class="f24-date">Scad. 01/12</div><div class="f24-amount" id="r-f2">—</div></div>
-    <div class="f24-card highlight"><div class="f24-eyebrow">Totale anno</div><div class="f24-date">Somma F24</div><div class="f24-amount" id="r-tot">—</div></div>
-  </div>
+<!-- FAQ -->
+<section class="faq-section">
+  <div class="faq-inner">
+    <div class="section-label">Domande frequenti</div>
+    <div class="section-title">Hai qualche dubbio?</div>
+    <div class="faq-list">
 
-  <div class="card">
-    <div class="card-title">Passaggi del calcolo</div>
-    <div class="step-list" id="steps-out"></div>
-  </div>
+      <div class="faq-item">
+        <button class="faq-q" onclick="toggleFaq(this)">
+          I miei dati vengono inviati a qualche server?
+          <span class="faq-arrow">▼</span>
+        </button>
+        <div class="faq-a">No. Tutti i calcoli avvengono esclusivamente nel tuo browser. I documenti che carichi vengono letti in memoria RAM e non lasciano mai il tuo dispositivo. Non vengono utilizzati cookie, localStorage o servizi di analytics. Alla chiusura della scheda, tutti i dati vengono eliminati definitivamente.</div>
+      </div>
 
-  <div class="mini-cards" id="mini-cards-calc"></div>
+      <div class="faq-item">
+        <button class="faq-q" onclick="toggleFaq(this)">
+          Per quale tipo di partita IVA è pensato?
+          <span class="faq-arrow">▼</span>
+        </button>
+        <div class="faq-a">Per i liberi professionisti e lavoratori autonomi in regime forfettario (art. 1, commi 54–89, L. 190/2014), iscritti alla Gestione Separata INPS (senza altra cassa previdenziale). Il calcolatore gestisce sia l'aliquota agevolata del 5% (primi 5 anni) che quella ordinaria del 15%.</div>
+      </div>
 
-  <div class="btn-row">
-    <button class="btn btn-secondary" onclick="goStep(1)">← Parametri</button>
-    <button class="btn btn-primary" onclick="goStep(3)" style="margin-left:auto">Vedi F24 →</button>
-  </div>
-</div>
+      <div class="faq-item">
+        <button class="faq-q" onclick="toggleFaq(this)">
+          I risultati sostituiscono il mio commercialista?
+          <span class="faq-arrow">▼</span>
+        </button>
+        <div class="faq-a">No. Lo strumento fornisce stime indicative basate sui parametri inseriti e sulle aliquote vigenti al momento dello sviluppo. Prima di effettuare qualsiasi versamento fiscale, verifica sempre i dati con il tuo commercialista o con i servizi ufficiali dell'Agenzia delle Entrate.</div>
+      </div>
 
-<div id="step-3" class="section">
-  <div class="card-title" style="padding-left:.1rem;margin-bottom:.6rem">Da versare — anno corrente</div>
+      <div class="faq-item">
+        <button class="faq-q" onclick="toggleFaq(this)">
+          Perché il totale da versare è più alto del mio carico fiscale reale?
+          <span class="faq-arrow">▼</span>
+        </button>
+        <div class="faq-a">Il F24 include sia i saldi dell'anno corrente che gli acconti anticipati per l'anno successivo, calcolati nello stesso momento. Gli acconti non sono un costo aggiuntivo: li troverai già pagati quando compilerai la dichiarazione dell'anno prossimo. Il tuo carico fiscale netto rimane quello calcolato sull'anno corrente.</div>
+      </div>
 
-  <div class="f24-box">
-    <div class="f24-box-hdr"><span class="f24-box-title">Scadenza 30 giugno</span><span class="f24-box-badge" id="f1-badge">—</span></div>
-    <div class="f24-line"><span class="f24-cod">1790</span><span class="f24-desc">Saldo imposta sostitutiva anno prec.</span><span class="f24-amt" id="f1r1">—</span></div>
-    <div class="f24-line"><span class="f24-cod">1790</span><span class="f24-desc">1° acconto imposta sostitutiva</span><span class="f24-amt" id="f1r2">—</span></div>
-    <div class="f24-line"><span class="f24-cod">0900</span><span class="f24-desc">Saldo contributi INPS GS anno prec.</span><span class="f24-amt" id="f1r3">—</span></div>
-    <div class="f24-line"><span class="f24-cod">0900</span><span class="f24-desc">1° acconto contributi INPS GS</span><span class="f24-amt" id="f1r4">—</span></div>
-    <div class="f24-total-row"><span>Totale F24 giugno</span><span id="f1tot">—</span></div>
-  </div>
+      <div class="faq-item">
+        <button class="faq-q" onclick="toggleFaq(this)">
+          Il PDF del mio F24 non viene riconosciuto, cosa faccio?
+          <span class="faq-arrow">▼</span>
+        </button>
+        <div class="faq-a">Il calcolatore supporta tre formati F24: le ricevute di riepilogo (con "Importo versamento : E."), il modello grafico F24 e il modello digitale. Se il tuo PDF è una scansione fotografica (immagine), l'estrazione non è possibile perché non contiene testo selezionabile. In quel caso, inserisci i valori manualmente usando gli helper ? per sapere dove trovarli.</div>
+      </div>
 
-  <div class="f24-box">
-    <div class="f24-box-hdr"><span class="f24-box-title">Scadenza 1 dicembre</span><span class="f24-box-badge" id="f2-badge">—</span></div>
-    <div class="f24-line"><span class="f24-cod">1791</span><span class="f24-desc">2° acconto imposta sostitutiva</span><span class="f24-amt" id="f2r1">—</span></div>
-    <div class="f24-line"><span class="f24-cod">0900</span><span class="f24-desc">2° acconto contributi INPS GS</span><span class="f24-amt" id="f2r2">—</span></div>
-    <div class="f24-total-row"><span>Totale F24 dicembre</span><span id="f2tot">—</span></div>
-  </div>
+      <div class="faq-item">
+        <button class="faq-q" onclick="toggleFaq(this)">
+          Come trovo l'export XML di FattureInCloud?
+          <span class="faq-arrow">▼</span>
+        </button>
+        <div class="faq-a">In FattureInCloud, vai su Fatture → Riepilogo → Esporta → seleziona l'anno di interesse → scarica in formato Excel/XML. Il file ha la struttura con "Totale Annuo" che il calcolatore riconosce automaticamente per estrarre il fatturato e contare le fatture.</div>
+      </div>
 
-  <div class="mini-cards">
-    <div class="mini-card red"><div class="mini-lbl">Totale esborso</div><div class="mini-val" id="f24-tot">—</div></div>
-    <div class="mini-card"><div class="mini-lbl">Solo saldi anno prec.</div><div class="mini-val" id="f24-saldi">—</div><div class="mini-sub">Dovuti entro giugno</div></div>
-    <div class="mini-card blue"><div class="mini-lbl">Carico fiscale reale</div><div class="mini-val" id="f24-reale">—</div><div class="mini-sub">Imposta + INPS</div></div>
+    </div>
   </div>
+</section>
 
-  <div class="btn-row">
-    <button class="btn btn-secondary" onclick="goStep(2)">← Calcolo</button>
-    <button class="btn btn-primary" onclick="goStep(4)" style="margin-left:auto">Confronto →</button>
+<!-- PRIVACY -->
+<section class="privacy-section">
+  <div class="privacy-inner">
+    <div class="privacy-icon">🔒</div>
+    <div class="privacy-title">I tuoi dati restano tuoi. Sempre.</div>
+    <div class="privacy-text">Questo strumento è progettato con un'architettura <strong>completamente client-side</strong>. I documenti vengono elaborati solo in memoria RAM nel tuo browser e non lasciano mai il dispositivo.</div>
+    <div class="privacy-chips">
+      <span class="chip">✓ Zero upload a server</span>
+      <span class="chip">✓ Zero cookie</span>
+      <span class="chip">✓ Zero analytics</span>
+      <span class="chip">✓ Funziona offline</span>
+      <span class="chip">✓ Open source</span>
+    </div>
   </div>
-</div>
+</section>
 
-<div id="step-4" class="section">
-  <div class="card">
-    <div class="card-title">Anno precedente vs anno corrente</div>
-    <div class="mini-cards" id="cfr-cards"><div class="mini-card"><div class="mini-val" style="font-size:.85rem;color:var(--slate-400)">Calcola prima</div></div></div>
-    <div class="chart-wrap"><canvas id="chartCfr" role="img" aria-label="Confronto anni"></canvas></div>
-  </div>
-  <div class="btn-row">
-    <button class="btn btn-secondary" onclick="goStep(3)">← F24</button>
-    <button class="btn btn-primary" onclick="goStep(5)" style="margin-left:auto">Accantonamento →</button>
-  </div>
-</div>
+<!-- CTA FINALE -->
+<section class="cta-section">
+  <h2>Pronto a calcolare i tuoi F24?</h2>
+  <p>Gratuito, privato e senza registrazione. Bastano i tuoi documenti fiscali.</p>
+  <a href="calcolatore.html" class="hero-cta">
+    Apri il calcolatore →
+  </a>
+</section>
 
-<div id="step-5" class="section">
-  <div class="acc-banner">
-    <div><div class="acc-label">Da accantonare ogni mese</div><div class="acc-sub">Per coprire il F24 di giugno</div></div>
-    <div class="acc-val" id="acc-rate">—</div>
+<!-- DISCLAIMER -->
+<section class="disclaimer-section">
+  <div class="disclaimer-inner">
+    <div class="disclaimer-title">⚠️ Avvertenze legali</div>
+    <div class="disclaimer-text">
+      Questo strumento è fornito esclusivamente a titolo dimostrativo e informativo. Non costituisce consulenza fiscale, tributaria, contabile o legale. I risultati sono stime indicative basate sui parametri inseriti e sulle aliquote vigenti al momento dello sviluppo, che potrebbero essere variate. L'autore declina ogni responsabilità per errori nei calcoli, decisioni fiscali prese sulla base dei risultati, o variazioni normative successive alla pubblicazione. Prima di effettuare qualsiasi versamento fiscale, verificare sempre con il proprio commercialista o con i servizi ufficiali dell'Agenzia delle Entrate.
+    </div>
   </div>
-  <div class="card">
-    <div class="card-title">Accumulo progressivo verso il F24</div>
-    <div class="chart-wrap"><canvas id="chartAcc" role="img" aria-label="Accumulo mensile"></canvas></div>
-  </div>
-  <div class="card">
-    <div class="card-title">Utilizzo soglia regime forfettario</div>
-    <div class="soglia-labels" id="soglia-top"><span id="soglia-fatt">—</span><span>Limite: € 85.000</span></div>
-    <div class="soglia-bar-bg"><div class="soglia-bar-fill" id="soglia-fill" style="width:0%"></div></div>
-    <div class="soglia-labels"><span id="soglia-pct" style="color:var(--blue-600);font-weight:600">0%</span><span id="soglia-margine">—</span></div>
-  </div>
-  <div class="btn-row">
-    <button class="btn btn-secondary" onclick="goStep(4)">← Confronto</button>
-    <button class="btn btn-secondary" onclick="goStep(0)">Ricomincia</button>
-  </div>
-</div>
+</section>
 
-</div><div class="tip-overlay" id="tip-overlay" onclick="closeTip(event)">
-  <div class="tip-box">
-    <button class="tip-close" onclick="closeTip(null)">✕</button>
-    <div class="tip-icon" id="tip-icon">💡</div>
-    <div class="tip-title" id="tip-title"></div>
-    <div class="tip-body" id="tip-body"></div>
-    <div class="tip-example" id="tip-example" style="display:none"></div>
-  </div>
-</div>
+<!-- FOOTER -->
+<footer class="footer">
+  <p>
+    regforcalculator &mdash; Strumento ad uso personale e dimostrativo &mdash;
+    <a href="https://github.com/vincenzootl/regforcalculator" target="_blank">GitHub</a>
+    &mdash; Aggiornato a giugno 2026
+  </p>
+</footer>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script>
-'use strict';
-
-/* ── PDF.js worker ─────────────────────────────────────────── */
-// Caricamento semplificato e diretto per evitare blocchi CORS/CSP
-pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-
-/* ── STATE ─────────────────────────────────────────────────── */
-const extracted = {};   // dati estratti dai documenti
-const files = {};       // file caricati per tipo
-let S = {};             // stato calcolo
-let chartCfr = null, chartAcc = null;
-let prevYear = {};      // dati anno precedente estratti
-
-/* ── TOOLTIP CONTENT ───────────────────────────────────────── */
-const TIPS = {
-  fatt:{ icon:'🧾', title:'Fatturato da FattureInCloud',
-    body:'Totale delle fatture emesse nell\'anno, come appare nel riepilogo di FattureInCloud. Non include le marche da bollo, che aggiungiamo separatamente (€ 2 per ogni fattura esente IVA > € 77,47).',
-    example:'Es.: € 25.000 da FattureInCloud + € 60 di bolli (30 fatture) = € 25.060 da dichiarare' },
-  bolli:{ icon:'📮', title:'Fatture con marca da bollo',
-    body:'Ogni fattura emessa in esenzione IVA con importo > € 77,47 richiede una marca da bollo virtuale di € 2,00. FattureInCloud non la inserisce nelle righe, va aggiunta manualmente in dichiarazione.',
-    example:'30 fatture × € 2 = € 60 da aggiungere al fatturato dichiarato' },
-  coeff:{ icon:'📐', title:'Coefficiente di redditività',
-    body:'Nel regime forfettario non si deducono le spese reali. Il tuo codice ATECO determina una percentuale fissa del fatturato considerata "reddito". Il resto è costo forfettizzato.',
-    example:'Comunicazione/marketing (ATECO 731xxx, 741xxx): 78%. Su € 25.000 → reddito lordo € 19.500' },
-  aliq:{ icon:'📊', title:'Imposta sostitutiva',
-    body:'Sostituisce IRPEF e addizionali. È al 5% per i primi 5 anni di attività, poi diventa 15%. Si applica sul reddito netto (dopo deduzione contributi INPS).',
-    example:'Dopo 5 anni: 15% × € 15.000 di reddito netto = € 2.250 di imposta' },
-  inpsDed:{ icon:'🔄', title:'Contributi INPS deducibili',
-    body:'Nel forfettario si deduce dal reddito lordo l\'importo dei contributi INPS effettivamente versati nell\'anno solare. Include il saldo dell\'anno precedente e i due acconti dell\'anno corrente.',
-    example:'Saldo anno prec. (€ 500) + 1° acconto (€ 1.200) + 2° acconto (€ 1.200) = € 2.900 deducibili' },
-  inpsAliq:{ icon:'🏛️', title:'Aliquota INPS Gestione Separata',
-    body:'I liberi professionisti senza altra cassa previdenziale sono iscritti alla Gestione Separata INPS. L\'aliquota 2025 è 26,07% sul reddito lordo forfettario.',
-    example:'26,07% × € 19.500 di reddito lordo = circa € 5.084 di contributi dovuti' },
-  accImp:{ icon:'💳', title:'Acconti imposta sostitutiva già versati',
-    body:'Durante l\'anno hai versato acconti sull\'imposta sostitutiva (codice 1790 + 1791 nei tuoi F24). Li trovi anche nel rigo LM45 della dichiarazione precompilata.',
-    example:'1° acconto € 400 + 2° acconto € 400 = € 800 versati durante l\'anno' },
-  accInps:{ icon:'💳', title:'Acconti INPS già versati',
-    body:'Totale dei versamenti INPS Gestione Separata (codice 0900 PXX) effettuati durante l\'anno. Include saldo anno precedente + due acconti anno corrente.',
-    example:'Saldo anno prec. (€ 500) + 1° acc. (€ 1.200) + 2° acc. (€ 1.200) = € 2.900' },
-  credito:{ icon:'✅', title:'Credito anno precedente residuo',
-    body:'Se dalla dichiarazione dell\'anno scorso è emerso un credito fiscale non ancora compensato. Lo trovi nel rigo LM43 della precompilata meno quanto già compensato (LM44).',
-    example:'LM43 = € 66, LM44 = € 66 → credito residuo = € 0' },
-  mesi:{ icon:'📅', title:'Mesi al F24 di giugno',
-    body:'Quanti mesi mancano alla scadenza del F24 di giugno. Il calcolatore divide il totale da versare per questo numero per darti la rata mensile da accantonare.',
-    example:'6 mesi rimanenti e € 6.000 da versare → € 1.000 al mese da mettere da parte' }
-};
-
-function openTip(k) {
-  const t = TIPS[k]; if (!t) return;
-  document.getElementById('tip-icon').textContent = t.icon;
-  document.getElementById('tip-title').textContent = t.title;
-  document.getElementById('tip-body').textContent = t.body;
-  const ex = document.getElementById('tip-example');
-  if (t.example) { ex.textContent = t.example; ex.style.display = 'block'; }
-  else ex.style.display = 'none';
-  document.getElementById('tip-overlay').classList.add('open');
-}
-function closeTip(e) {
-  if (e && e.target !== document.getElementById('tip-overlay')) return;
-  document.getElementById('tip-overlay').classList.remove('open');
-}
-document.addEventListener('keydown', e => { if (e.key === 'Escape') closeTip(null); });
-
-/* ── STEPPER ───────────────────────────────────────────────── */
-let currentStep = 0;
-function goStep(n) {
-  document.querySelectorAll('.section').forEach((s,i) => s.classList.toggle('active', i === n));
-  document.querySelectorAll('.step-btn').forEach((b,i) => {
-    b.classList.toggle('active', i === n);
-    b.classList.toggle('done', i < n);
-  });
-  currentStep = n;
-  window.scrollTo({top:0, behavior:'smooth'});
-}
-function skipDocs() { goStep(1); }
-
-/* ── FILE UPLOAD HELPERS ───────────────────────────────────── */
-function dragOver(e, el) { e.preventDefault(); el.classList.add('drag'); }
-function dragLeave(el) { el.classList.remove('drag'); }
-function dropFile(e, type) {
-  e.preventDefault();
-  e.currentTarget.classList.remove('drag');
-  const f = e.dataTransfer.files;
-  if (f.length) processFiles(Array.from(f), type);
-}
-function handleFile(e, type) {
-  const f = e.target.files;
-  if (f.length) processFiles(Array.from(f), type);
-}
-
-function setBadge(type, names) {
-  const el = document.getElementById(type + '-badge');
-  const uz = document.getElementById('uz-' + type);
-  if (names.length) {
-    uz.classList.add('has-file');
-    el.innerHTML = names.map(n =>
-      `<span class="file-badge">✓ ${n.length > 22 ? n.slice(0,20)+'…' : n}</span>`
-    ).join('');
-  }
-}
-
-/* ── LOG ────────────────────────────────────────────────────── */
-function log(msg, cls='') {
-  const el = document.getElementById('extract-log');
-  el.classList.add('visible');
-  el.innerHTML += `<div class="${cls}">› ${msg}</div>`;
-  el.scrollTop = el.scrollHeight;
-}
-function logOk(m) { log(m, 'log-ok'); }
-function logWarn(m) { log(m, 'log-warn'); }
-function logInfo(m) { log(m, 'log-info'); }
-function logErr(m) { log(m, 'log-err'); }
-
-/* ── PDF TEXT EXTRACTION ───────────────────────────────────── */
-async function pdfToText(file) {
-  const buf = await file.arrayBuffer();
-  const pdf = await pdfjsLib.getDocument({data: buf}).promise;
-  let text = '';
-  for (let i = 1; i <= pdf.numPages; i++) {
-    const page = await pdf.getPage(i);
-    const content = await page.getTextContent();
-    text += content.items.map(it => it.str).join(' ') + '\n';
-  }
-  return text;
-}
-
-/* ── UTILS ──────────────────────────────────────────────────── */
-
-function parseIT(s) {
-  if (!s) return null;
-  const clean = String(s).trim().replace(/\./g,'').replace(',','.');
-  const n = parseFloat(clean);
-  return isNaN(n) ? null : n;
-}
-
-function extractAmounts(s) {
-  const matches = s.match(/\d{1,3}(?:\.\d{3})*,\d{2}/g) || [];
-  return matches.map(parseIT).filter(v => v !== null && v > 0);
-}
-
-/* ── PARSER F24 ──────────────────────────────────────────────── */
-function parseF24(text) {
-  logInfo('F24: analisi del PDF...');
-  const result = { acc0900: 0, acc1790: 0, acc1791: 0, acc1792: 0, totaleVersato: 0, isRicevuta: false };
-  const flat = text.replace(/\s+/g, ' ').trim();
-
-  // FORMATO A: Ricevuta
-  const ricevutaPattern = /[Ii]mporto\s+versamento\s*:\s*[Ee]\.?\s*([\d\.]+,\d{2})/g;
-  let ricevutaMatch, totRicevuta = 0, nRicevute = 0;
-
-  while ((ricevutaMatch = ricevutaPattern.exec(flat)) !== null) {
-    const v = parseIT(ricevutaMatch[1]);
-    if (v && v > 0 && v < 100000) {
-      totRicevuta += v;
-      nRicevute++;
-      logOk(`Ricevuta F24: importo versamento = € ${v.toLocaleString('it-IT', {minimumFractionDigits:2})}`);
-    }
-  }
-
-  if (nRicevute > 0) {
-    result.isRicevuta = true;
-    result.totaleVersato = Math.round(totRicevuta * 100) / 100;
-    logInfo(`Trovate ${nRicevute} ricevuta/e — totale versato: € ${result.totaleVersato.toLocaleString('it-IT',{minimumFractionDigits:2})}`);
-    return result;
-  }
-
-  // FORMATO B: Modello F24
-  const TRIBUTI = [
-    { key: 'acc0900', code: '0900', label: 'INPS GS' },
-    { key: 'acc1790', code: '1790', label: 'Imp.sost. 1°acc' },
-    { key: 'acc1791', code: '1791', label: 'Imp.sost. 2°acc' },
-    { key: 'acc1792', code: '1792', label: 'Credito compensato' },
-  ];
-
-  for (const t of TRIBUTI) {
-    let pos = 0;
-    while (true) {
-      const idx = flat.indexOf(t.code, pos);
-      if (idx === -1) break;
-      const window = flat.slice(idx, idx + 300);
-      const amounts = extractAmounts(window).filter(v => v >= 10 && v < 30000);
-      if (amounts.length) {
-        const best = Math.max(...amounts);
-        result[t.key] += best;
-        logOk(`Cod.${t.code} (${t.label}): € ${best.toLocaleString('it-IT',{minimumFractionDigits:2})}`);
-      }
-      pos = idx + t.code.length;
-    }
-  }
-
-  const hasCodici = result.acc0900 > 0 || result.acc1790 > 0 || result.acc1791 > 0;
-  if (!hasCodici) logWarn('F24: nessun importo estratto — il PDF potrebbe essere un\'immagine scansionata');
-  return result;
-}
-
-/* ── PARSER RPF / MODELLO REDDITI ────────────────────────────── */
-function parseRPF(text) {
-  logInfo('RPF/Redditi: scansione quadro LM e RR...');
-  const result = {};
-  const flat = text.replace(/\r\n/g, '\n').replace(/[ \t]+/g, ' ');
-
-  function getLM(rigo, minVal, maxVal) {
-    const labels = [`LM${rigo}`, `LM ${rigo}`, `LM0${rigo}`];
-    for (const lbl of labels) {
-      const idx = flat.indexOf(lbl);
-      if (idx === -1) continue;
-      const chunk = flat.slice(idx + lbl.length, idx + lbl.length + 400);
-      const amounts = extractAmounts(chunk).filter(v => v >= (minVal || 1) && v <= (maxVal || 999999));
-      if (amounts.length) return amounts[0];
-    }
-    return null;
-  }
-
-  function getRR(rigo) {
-    const lbl = `RR${rigo}`;
-    const idx = flat.indexOf(lbl);
-    if (idx === -1) return null;
-    const chunk = flat.slice(idx + lbl.length, idx + 400);
-    const amounts = extractAmounts(chunk).filter(v => v >= 1 && v <= 99999);
-    return amounts.length ? amounts[0] : null;
-  }
-
-  const keys = [
-    {k:'fatt', fn:()=>getLM(22, 100, 500000), lbl:'LM22 fatturato'},
-    {k:'redLordo', fn:()=>getLM(34, 100, 500000), lbl:'LM34 reddito lordo'},
-    {k:'inpsDed', fn:()=>getLM(35, 1, 50000), lbl:'LM35 INPS deducibili'},
-    {k:'redNetto', fn:()=>getLM(36, 1, 500000), lbl:'LM36 reddito netto'},
-    {k:'imposta', fn:()=>getLM(39, 1, 50000), lbl:'LM39 imposta sostitutiva'},
-    {k:'lm43', fn:()=>getLM(43, 0.01, 10000), lbl:'LM43 eccedenza anno prec.'},
-    {k:'lm44', fn:()=>getLM(44, 0.01, 10000), lbl:'LM44 compensata F24'},
-    {k:'accImp', fn:()=>getLM(45, 1, 50000), lbl:'LM45 acconti imp.sostitutiva'},
-    {k:'inpsImponibile', fn:()=>getRR(5), lbl:'RR5 imponibile INPS'},
-    {k:'inpsDov', fn:()=>getRR(6), lbl:'RR6 INPS dovuto'},
-    {k:'inpsDebito', fn:()=>getRR(7), lbl:'RR7 contributo a debito'}
-  ];
-
-  keys.forEach(obj => {
-    const val = obj.fn();
-    if (val != null) { result[obj.k] = val; logOk(`${obj.lbl} = € ${val.toLocaleString('it-IT',{minimumFractionDigits:2})}`); }
-  });
-
-  if (result.lm43 != null && result.lm44 != null) {
-    result.credito = Math.max(0, result.lm43 - result.lm44);
-    logOk(`Credito residuo (LM43 - LM44) = € ${result.credito.toLocaleString('it-IT',{minimumFractionDigits:2})}`);
-  } else if (result.lm43 != null && result.lm44 == null) {
-    result.credito = result.lm43;
-  }
-
-  if (Object.keys(result).length === 0) logWarn('RPF: nessun rigo trovato');
-  return result;
-}
-
-function parseRedditi(text) { return parseRPF(text); }
-
-/* ── PARSER FattureInCloud XML ───────────────────────────────── */
-function parseFIC(text) {
-  logInfo('FattureInCloud XML: estrazione dati in corso...');
-  const result = { fatt: 0, nFatture: 0 };
-
-  // 1. Trova Totale Annuo estraendo il nodo xml puro in modo robusto
-  const totAnnuoIdx = text.indexOf('Totale Annuo');
-  if (totAnnuoIdx !== -1) {
-    const chunk = text.slice(totAnnuoIdx, totAnnuoIdx + 500);
-    // SpreadsheetML formato per il totale: <Data ss:Type="Number">30396</Data>
-    const numMatches = chunk.match(/<Data ss:Type="Number">([\d\.]+)</g) || [];
-    if (numMatches.length > 0) {
-      const v = parseFloat(numMatches[0].replace(/<[^>]+>/g, ''));
-      result.fatt = Math.round(v * 100) / 100;
-      logOk(`Totale Annuo trovato = € ${result.fatt.toLocaleString('it-IT', {minimumFractionDigits:2})}`);
-    }
-  }
-
-  // 2. Conta le fatture emesse separando correttamente i blocchi
-  // Invece di usare un regex goloso che fonde i mesi senza fatture passive, 
-  // dividiamo il testo in blocchi in corrispondenza di ogni "Fatture emesse".
-  const blocks = text.split(/>Fatture emesse</);
-  let nFattureEmesse = 0;
-  
-  for (let i = 1; i < blocks.length; i++) {
-     // Tagliamo il blocco alla riga "Totale" che chiude sempre la sezione "Fatture emesse"
-     const endIdx = blocks[i].indexOf('>Totale<');
-     const chunk = endIdx !== -1 ? blocks[i].slice(0, endIdx) : blocks[i];
-     // Contiamo le righe con marcatore di data
-     nFattureEmesse += (chunk.match(/T00:00:00/g) || []).length;
-  }
-  
-  result.nFatture = nFattureEmesse;
-  if (result.nFatture > 0) logOk(`Fatture emesse contate (bolli presunti): ${result.nFatture}`);
-
-  if (result.fatt === 0) logWarn('FIC: fatturato non trovato — controlla che il file sia corretto');
-  if (result.nFatture === 0) logWarn('FIC: impossibile contare le fatture — inserisci manualmente il numero di bolli');
-
-  return result;
-}
-
-/* ── PROCESS FILES ──────────────────────────────────────────── */
-async function processFiles(fileList, type) {
-  setBadge(type, fileList.map(f => f.name));
-  files[type] = fileList;
-
-  for (const file of fileList) {
-    logInfo(`Lettura file: ${file.name}...`);
-    try {
-      let parsed = {};
-      const isPDF = file.name.toLowerCase().endsWith('.pdf');
-      const isXML = /\.(xml|xls|xlsx|csv)$/i.test(file.name);
-
-      if (isPDF) {
-        const text = await pdfToText(file);
-        if (type === 'f24')     parsed = parseF24(text);
-        else if (type === 'rpf')    parsed = parseRPF(text);
-        else if (type === 'redditi') parsed = parseRedditi(text);
-      } else if (isXML) {
-        const text = await file.text();
-        if (type === 'fic') parsed = parseFIC(text);
-      }
-      Object.assign(extracted, parsed);
-    } catch(e) { logErr(`Errore lettura ${file.name}: ${e.message}`); }
-  }
-
-  updateExtractedPills();
-  prefillFields();
-}
-
-/* ── AGGIORNA PILLS ──────────────────────────────────────────── */
-const PILL_DEFS = [
-  { key:'fatt',     label:'Fatturato',             src:'RPF/FIC' },
-  { key:'inpsDed',  label:'INPS deducibili',        src:'RPF/F24' },
-  { key:'accImp',   label:'Acconti imp. sost.',     src:'RPF' },
-  { key:'credito',  label:'Credito residuo',         src:'RPF' },
-  { key:'acc0900',  label:'Versato INPS (0900)',     src:'F24' },
-  { key:'acc1790',  label:'Versato imp. (1790)',     src:'F24' },
-  { key:'imposta',  label:'Imposta sost. (LM39)',   src:'RPF' },
-  { key:'redLordo', label:'Reddito lordo (LM34)',   src:'RPF' },
-  { key:'inpsDov',  label:'INPS dovuto (RR6)',       src:'RPF' },
-];
-
-function fmtEur(v) { return '\u20AC\u00A0' + Math.abs(v).toLocaleString('it-IT',{minimumFractionDigits:2,maximumFractionDigits:2}); }
-function fmtInt(v) { return '\u20AC\u00A0' + Math.round(Math.abs(v)).toLocaleString('it-IT'); }
-
-function updateExtractedPills() {
-  const container = document.getElementById('extracted-pills');
-  const pills = PILL_DEFS.filter(d => extracted[d.key] != null && extracted[d.key] !== 0);
-  if (!pills.length) { container.style.display = 'none'; return; }
-  container.style.display = 'grid';
-  container.innerHTML = pills.map(d => `
-    <div class="ex-pill">
-      <div class="ex-pill-src">${d.src}</div>
-      <div class="ex-pill-lbl">${d.label}</div>
-      <div class="ex-pill-val">${fmtEur(extracted[d.key])}</div>
-    </div>`).join('');
-}
-
-/* ── PREFILL CAMPI ───────────────────────────────────────────── */
-function setSrc(fieldId, isAuto) {
-  const el = document.getElementById('src-' + fieldId);
-  if (!el) return;
-  if (isAuto) { el.textContent = 'da documento'; el.classList.remove('manual'); }
-  else        { el.textContent = 'manuale';       el.classList.add('manual'); }
-}
-
-function setField(inputId, srcId, value) {
-  if (value == null || value === 0) return;
-  const el = document.getElementById(inputId);
-  if (!el) return;
-  el.value = Math.round(value * 100) / 100;
-  el.classList.add('auto-filled');
-  setSrc(srcId, true);
-}
-
-function prefillFields() {
-  if (extracted.fatt) setField('i-fatt', 'fatt', extracted.fatt);
-  if (extracted.nFatture) setField('i-bolli', 'bolli', extracted.nFatture);
-
-  const hasCodici = (extracted.acc0900 || 0) + (extracted.acc1790 || 0) + (extracted.acc1791 || 0) > 0;
-  const hasRicevuta = extracted.isRicevuta && extracted.totaleVersato > 0;
-
-  if (hasCodici) {
-    const inpsDed = extracted.acc0900 > 0 ? extracted.acc0900 : (extracted.inpsDed || null);
-    if (inpsDed) setField('i-inps-ded', 'inpsDed', inpsDed);
-    const accImpF24 = (extracted.acc1790 || 0) + (extracted.acc1791 || 0);
-    const accImp = extracted.accImp || (accImpF24 > 0 ? accImpF24 : null);
-    if (accImp) setField('i-acc-imp', 'accImp', accImp);
-    if (extracted.acc0900 > 0) setField('i-acc-inps', 'accInps', extracted.acc0900);
-  } else if (hasRicevuta) {
-    if (extracted.inpsDed) setField('i-inps-ded', 'inpsDed', extracted.inpsDed);
-    if (extracted.accImp)  setField('i-acc-imp',  'accImp',  extracted.accImp);
-    const accInpsStima = extracted.totaleVersato - (extracted.accImp || 0);
-    if (accInpsStima > 0 && !extracted.inpsDed) setField('i-acc-inps', 'accInps', accInpsStima);
-  } else {
-    if (extracted.inpsDed) setField('i-inps-ded', 'inpsDed', extracted.inpsDed);
-    if (extracted.accImp)  setField('i-acc-imp',  'accImp',  extracted.accImp);
-  }
-
-  if (extracted.credito != null) setField('i-credito', 'credito', extracted.credito);
-
-  if (extracted.redLordo) prevYear.redLordo = extracted.redLordo;
-  if (extracted.imposta)  prevYear.imposta  = extracted.imposta;
-  if (extracted.inpsDov)  prevYear.inpsDov  = extracted.inpsDov;
-  if (extracted.fatt)     prevYear.fatt     = extracted.fatt;
-}
-
-/* ── CALCOLO ─────────────────────────────────────────────────── */
-function gv(id) { return parseFloat(document.getElementById(id).value) || 0; }
-
-function calcola() {
-  const fatt     = gv('i-fatt'),  nBolli  = gv('i-bolli');
-  const coeff    = gv('i-coeff'), aliq    = gv('i-aliq');
-  const inpsDed  = gv('i-inps-ded'), inpsAliq = gv('i-inps-aliq');
-  const accImp   = gv('i-acc-imp'), accInps  = gv('i-acc-inps');
-  const credito  = gv('i-credito'), mesi     = Math.max(1, gv('i-mesi'));
-
-  const bolliFatt = nBolli * 2;
-  const fattTot   = fatt + bolliFatt;
-  
-  // Imponibili e Divenute
-  const redLordo  = fattTot * coeff / 100;
-  const redNetto  = Math.max(0, redLordo - inpsDed);
-  
-  // Totali dovuti
-  const imposta   = Math.max(0, redNetto * aliq / 100);
-  const inpsDov   = redLordo * inpsAliq / 100;
-  
-  // Saldi a debito
-  const saldoImp  = Math.max(0, imposta - accImp - credito);
-  const saldoInps = Math.max(0, inpsDov - accInps);
-  
-  // Acconti:
-  // Imposta Sostitutiva = 100% totale diviso in due rate (50% giugno + 50% novembre)
-  const acc1Imp   = imposta * 0.5;
-  // INPS Gestione Separata = 80% totale diviso in due rate (40% giugno + 40% novembre)
-  const acc1Inps  = inpsDov * 0.4; 
-
-  const f1 = saldoImp + acc1Imp + saldoInps + acc1Inps;
-  const f2 = acc1Imp + acc1Inps;
-
-  S = {fatt,nBolli,bolliFatt,fattTot,coeff,aliq,inpsDed,inpsAliq,accImp,accInps,
-       credito,mesi,redLordo,inpsDov,redNetto,imposta,saldoImp,saldoInps,acc1Imp,acc1Inps,f1,f2};
-
-  renderStep2(S);
-  renderF24(S);
-  renderCfr(S);
-  renderAcc(S);
-  goStep(2);
-}
-
-/* ── RENDER STEP 2 ───────────────────────────────────────────── */
-function renderStep2(s) {
-  document.getElementById('r-f1').textContent = fmtEur(s.f1);
-  document.getElementById('r-f2').textContent = fmtEur(s.f2);
-  document.getElementById('r-tot').textContent = fmtEur(s.f1 + s.f2);
-
-  document.getElementById('steps-out').innerHTML = `
-    <div class="step-row"><span class="step-lbl">Fatturato dichiarato</span><span class="step-val">${fmtEur(s.fatt)}</span></div>
-    <div class="step-row"><span class="step-lbl op">+ Marche da bollo (${s.nBolli} × €2)</span><span class="step-val">${fmtEur(s.bolliFatt)}</span></div>
-    <div class="step-row sub-total"><span class="step-lbl" style="font-weight:600">= Fatturato reale da dichiarare</span><span class="step-val accent">${fmtEur(s.fattTot)}</span></div>
-    <div class="step-divider"></div>
-    <div class="step-row"><span class="step-lbl op">× Coefficiente redditività ${s.coeff}%</span><span class="step-val">${fmtEur(s.redLordo)}</span></div>
-    <div class="step-row"><span class="step-lbl op">− Contributi INPS deducibili</span><span class="step-val neg">− ${fmtEur(s.inpsDed)}</span></div>
-    <div class="step-row sub-total"><span class="step-lbl" style="font-weight:600">= Reddito netto imponibile</span><span class="step-val accent">${fmtEur(s.redNetto)}</span></div>
-    <div class="step-divider"></div>
-    <div class="step-row"><span class="step-lbl op">× Imposta sostitutiva ${s.aliq}%</span><span class="step-val">${fmtEur(s.imposta)}</span></div>
-    <div class="step-row"><span class="step-lbl op">− Acconti imp. sost. versati</span><span class="step-val neg">− ${fmtEur(s.accImp)}</span></div>
-    <div class="step-row"><span class="step-lbl op">− Credito anno precedente</span><span class="step-val neg">− ${fmtEur(s.credito)}</span></div>
-    <div class="step-row sub-total"><span class="step-lbl" style="font-weight:600">= Saldo imposta da versare</span><span class="step-val accent">${fmtEur(s.saldoImp)}</span></div>
-    <div class="step-divider"></div>
-    <div class="step-row"><span class="step-lbl">INPS GS dovuto (${s.inpsAliq}% × reddito lordo)</span><span class="step-val">${fmtEur(s.inpsDov)}</span></div>
-    <div class="step-row"><span class="step-lbl op">− Acconti INPS versati</span><span class="step-val neg">− ${fmtEur(s.accInps)}</span></div>
-    <div class="step-row sub-total"><span class="step-lbl" style="font-weight:600">= Saldo INPS da versare</span><span class="step-val accent">${fmtEur(s.saldoInps)}</span></div>`;
-
-  document.getElementById('mini-cards-calc').innerHTML = `
-    <div class="mini-card"><div class="mini-lbl">Fatturato reale</div><div class="mini-val">${fmtInt(s.fattTot)}</div><div class="mini-sub">+${fmtInt(s.bolliFatt)} bolli</div></div>
-    <div class="mini-card blue"><div class="mini-lbl">Reddito lordo</div><div class="mini-val">${fmtInt(s.redLordo)}</div><div class="mini-sub">${s.coeff}% fatturato</div></div>
-    <div class="mini-card amber"><div class="mini-lbl">INPS dovuto</div><div class="mini-val">${fmtInt(s.inpsDov)}</div><div class="mini-sub">${s.inpsAliq}% red. lordo</div></div>
-    <div class="mini-card red"><div class="mini-lbl">Imposta sost.</div><div class="mini-val">${fmtInt(s.imposta)}</div><div class="mini-sub">Aliquota ${s.aliq}%</div></div>
-    <div class="mini-card"><div class="mini-lbl">Reddito netto</div><div class="mini-val">${fmtInt(s.redNetto)}</div><div class="mini-sub">Base imposta</div></div>
-    <div class="mini-card green"><div class="mini-lbl">Carico fiscale reale</div><div class="mini-val">${fmtInt(s.imposta+s.inpsDov)}</div><div class="mini-sub">Imposta + INPS</div></div>`;
-}
-
-/* ── RENDER F24 ──────────────────────────────────────────────── */
-function renderF24(s) {
-  document.getElementById('f1-badge').textContent  = fmtEur(s.f1);
-  document.getElementById('f1r1').textContent = fmtEur(s.saldoImp);
-  document.getElementById('f1r2').textContent = fmtEur(s.acc1Imp);
-  document.getElementById('f1r3').textContent = fmtEur(s.saldoInps);
-  document.getElementById('f1r4').textContent = fmtEur(s.acc1Inps);
-  document.getElementById('f1tot').textContent = fmtEur(s.f1);
-  document.getElementById('f2-badge').textContent  = fmtEur(s.f2);
-  document.getElementById('f2r1').textContent = fmtEur(s.acc1Imp);
-  document.getElementById('f2r2').textContent = fmtEur(s.acc1Inps);
-  document.getElementById('f2tot').textContent = fmtEur(s.f2);
-  document.getElementById('f24-tot').textContent   = fmtInt(s.f1 + s.f2);
-  document.getElementById('f24-saldi').textContent = fmtInt(s.saldoImp + s.saldoInps);
-  document.getElementById('f24-reale').textContent = fmtInt(s.imposta + s.inpsDov);
-}
-
-/* ── RENDER CONFRONTO ────────────────────────────────────────── */
-function renderCfr(s) {
-  const p = prevYear;
-  const pFatt     = p.fatt    || 0;
-  const pImposta  = p.imposta || 0;
-  const pInps     = p.inpsDov || 0;
-  const pReale    = pImposta + pInps;
-  const hasPrev   = pFatt > 0 || pImposta > 0;
-
-  const delta = (a, b) => {
-    const d = Math.round(a - b);
-    if (!hasPrev || b === 0) return '';
-    return `<span class="badge ${d >= 0 ? 'up' : 'dn'}">${d >= 0 ? '+' : ''}€${Math.abs(d).toLocaleString('it-IT')}</span>`;
-  };
-
-  document.getElementById('cfr-cards').innerHTML = `
-    <div class="mini-card"><div class="mini-lbl">Fatturato prec.</div><div class="mini-val">${hasPrev ? fmtInt(pFatt) : '—'}</div></div>
-    <div class="mini-card blue"><div class="mini-lbl">Fatturato corrente</div><div class="mini-val">${fmtInt(s.fattTot)}</div><div class="mini-sub">${delta(s.fattTot, pFatt)}</div></div>
-    <div class="mini-card"><div class="mini-lbl">Imposta precedente</div><div class="mini-val">${hasPrev ? fmtInt(pImposta) : '—'}</div></div>
-    <div class="mini-card red"><div class="mini-lbl">Imposta corrente</div><div class="mini-val">${fmtInt(s.imposta)}</div><div class="mini-sub">${delta(s.imposta, pImposta)}</div></div>
-    <div class="mini-card"><div class="mini-lbl">INPS precedente</div><div class="mini-val">${hasPrev ? fmtInt(pInps) : '—'}</div></div>
-    <div class="mini-card amber"><div class="mini-lbl">INPS corrente</div><div class="mini-val">${fmtInt(s.inpsDov)}</div><div class="mini-sub">${delta(s.inpsDov, pInps)}</div></div>`;
-
-  const newData = [Math.round(s.fattTot), Math.round(s.redNetto), Math.round(s.imposta), Math.round(s.inpsDov), Math.round(s.imposta+s.inpsDov)];
-  const prevData = hasPrev ? [Math.round(pFatt), 0, Math.round(pImposta), Math.round(pInps), Math.round(pReale)] : null;
-
-  if (chartCfr) {
-    chartCfr.data.datasets[0].data = prevData || [0,0,0,0,0]; // Ripristina dati vecchi al ricalcolo
-    chartCfr.data.datasets[1].data = newData;
-    chartCfr.update();
-  } else {
-    chartCfr = new Chart(document.getElementById('chartCfr'), {
-      type: 'bar',
-      data: {
-        labels: ['Fatturato','Reddito netto','Imposta','INPS GS','Carico fiscale'],
-        datasets: [
-          { label: hasPrev ? 'Anno precedente' : '', data: prevData || [0,0,0,0,0],
-            backgroundColor: '#E2E8F0', borderRadius: 5, borderSkipped: false },
-          { label: 'Anno corrente', data: newData,
-            backgroundColor: '#3B82F6', borderRadius: 5, borderSkipped: false }
-        ]
-      },
-      options: {
-        responsive:true, maintainAspectRatio:false,
-        plugins:{ legend:{ display: hasPrev, labels:{font:{size:11},color:'#64748B'} },
-          tooltip:{callbacks:{label:c=>c.dataset.label+': €'+c.raw.toLocaleString('it-IT')}} },
-        scales:{
-          x:{ticks:{color:'#94A3B8',font:{size:10}},grid:{display:false}},
-          y:{ticks:{color:'#94A3B8',font:{size:10},callback:v=>'€'+Math.round(v/1000)+'k'},grid:{color:'rgba(15,23,42,.05)'}}
-        }
-      }
-    });
-  }
-}
-
-/* ── RENDER ACCANTONAMENTO ───────────────────────────────────── */
-function renderAcc(s) {
-  const rate = s.f1 / s.mesi;
-  document.getElementById('acc-rate').textContent = fmtInt(rate) + '/mese';
-
-  const pct = Math.min(100, (s.fattTot / 85000) * 100);
-  document.getElementById('soglia-fill').style.width = pct.toFixed(1) + '%';
-  document.getElementById('soglia-pct').textContent = pct.toFixed(1) + '%';
-  document.getElementById('soglia-fatt').textContent = 'Fatturato: ' + fmtInt(s.fattTot);
-  document.getElementById('soglia-margine').textContent = 'Margine: ' + fmtInt(Math.max(0, 85000 - s.fattTot));
-
-  const labels = Array.from({length: s.mesi}, (_,i) => 'M'+(i+1));
-  const data   = Array.from({length: s.mesi}, (_,i) => Math.round(rate*(i+1)));
-
-  if (chartAcc) {
-    chartAcc.data.labels = labels;
-    chartAcc.data.datasets[0].data = data;
-    chartAcc.options.scales.y.max = Math.ceil(s.f1/1000)*1000;
-    chartAcc.update();
-  } else {
-    chartAcc = new Chart(document.getElementById('chartAcc'), {
-      type: 'line',
-      data: {
-        labels,
-        datasets: [{
-          label: 'Accantonato',
-          data,
-          borderColor: '#3B82F6',
-          backgroundColor: 'rgba(59,130,246,.08)',
-          fill: true, tension: 0.35,
-          pointRadius: 4, pointBackgroundColor: '#3B82F6',
-          pointBorderColor: '#fff', pointBorderWidth: 2
-        }]
-      },
-      options: {
-        responsive:true, maintainAspectRatio:false,
-        plugins:{ legend:{display:false}, tooltip:{callbacks:{label:c=>'€ '+c.raw.toLocaleString('it-IT')}} },
-        scales:{
-          x:{ticks:{color:'#94A3B8',font:{size:10}},grid:{display:false}},
-          y:{ min:0, max:Math.ceil(s.f1/1000)*1000,
-            ticks:{color:'#94A3B8',font:{size:10},callback:v=>'€'+Math.round(v/1000)+'k'},
-            grid:{color:'rgba(15,23,42,.05)'} }
-        }
-      }
-    });
-  }
+function toggleFaq(btn) {
+  const item = btn.closest('.faq-item');
+  const isOpen = item.classList.contains('open');
+  document.querySelectorAll('.faq-item.open').forEach(el => el.classList.remove('open'));
+  if (!isOpen) item.classList.add('open');
 }
 </script>
 </body>

@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Calcolatore — Regime Forfettario</title>
+<meta name="description" content="Calcola imposta sostitutiva, contributi INPS e F24. Carica i tuoi documenti fiscali per la pre-compilazione automatica.">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<nav class="app-nav">
+  <a href="index.html" class="nav-back">&#8592; Home</a>
+  <span class="nav-title">Calcolatore forfettario</span>
+  <span class="nav-badge">Beta</span>
+</nav>
+
+<div class="shell">
+
+<div class="page-header">
+  <h1>Calcolatore regime forfettario</h1>
+  <p>Carica i tuoi documenti fiscali — i campi vengono compilati automaticamente.</p>
+</div>
+
+<!-- STEPPER -->
+<div class="stepper" role="tablist">
+  <button class="step-btn active" onclick="goStep(0)" role="tab" aria-selected="true">
+    <div class="s-num">1</div><div class="s-label">Documenti</div>
+  </button>
+  <button class="step-btn" onclick="goStep(1)" role="tab">
+    <div class="s-num">2</div><div class="s-label">Parametri</div>
+  </button>
+  <button class="step-btn" onclick="goStep(2)" role="tab">
+    <div class="s-num">3</div><div class="s-label">Calcolo</div>
+  </button>
+  <button class="step-btn" onclick="goStep(3)" role="tab">
+    <div class="s-num">4</div><div class="s-label">F24 2026</div>
+  </button>
+  <button class="step-btn" onclick="goStep(4)" role="tab">
+    <div class="s-num">5</div><div class="s-label">Confronto</div>
+  </button>
+  <button class="step-btn" onclick="goStep(5)" role="tab">
+    <div class="s-num">6</div><div class="s-label">Accantonamento</div>
+  </button>
+</div>
+
+<!-- ═══ STEP 0: CARICA DOCUMENTI ═══ -->
+<div id="step-0" class="section active">
+  <div class="card">
+    <div class="card-title">Carica i tuoi documenti fiscali</div>
+    <p style="font-size:.82rem;color:var(--slate-500);margin-bottom:1rem;line-height:1.6">
+      I documenti vengono letti <strong>solo nel tuo browser</strong> — nessun dato viene inviato a server esterni.
+      Puoi caricare uno o più file; i dati estratti pre-compileranno i campi nel passo successivo.
+    </p>
+
+    <div class="upload-grid">
+      <div class="upload-zone" id="uz-f24" ondragover="dragOver(event,this)" ondragleave="dragLeave(this)" ondrop="dropFile(event,'f24')">
+        <input type="file" accept=".pdf" onchange="handleFile(event,'f24')" multiple>
+        <span class="uz-icon">📄</span>
+        <div class="uz-title">F24 — Ricevute di pagamento</div>
+        <div class="uz-sub">PDF · Estrae acconti versati per codice tributo</div>
+        <div id="f24-badge"></div>
+      </div>
+
+      <div class="upload-zone" id="uz-rpf" ondragover="dragOver(event,this)" ondragleave="dragLeave(this)" ondrop="dropFile(event,'rpf')">
+        <input type="file" accept=".pdf" onchange="handleFile(event,'rpf')" multiple>
+        <span class="uz-icon">📋</span>
+        <div class="uz-title">Dichiarazione precompilata</div>
+        <div class="uz-sub">PDF · Estrae righi LM34, LM35, LM43, LM45</div>
+        <div id="rpf-badge"></div>
+      </div>
+
+      <div class="upload-zone" id="uz-redditi" ondragover="dragOver(event,this)" ondragleave="dragLeave(this)" ondrop="dropFile(event,'redditi')">
+        <input type="file" accept=".pdf" onchange="handleFile(event,'redditi')" multiple>
+        <span class="uz-icon">📑</span>
+        <div class="uz-title">Modello Redditi (quadro LM/RR)</div>
+        <div class="uz-sub">PDF · Estrae reddito, imposta, contributi INPS</div>
+        <div id="redditi-badge"></div>
+      </div>
+
+      <div class="upload-zone" id="uz-fic" ondragover="dragOver(event,this)" ondragleave="dragLeave(this)" ondrop="dropFile(event,'fic')">
+        <input type="file" accept=".xml,.xls,.xlsx,.csv" onchange="handleFile(event,'fic')" multiple>
+        <span class="uz-icon">🧾</span>
+        <div class="uz-title">Export FattureInCloud</div>
+        <div class="uz-sub">XML · Calcola fatturato e conta i bolli</div>
+        <div id="fic-badge"></div>
+      </div>
+    </div>
+
+    <div class="extract-log" id="extract-log"></div>
+
+    <div id="extracted-pills" class="extracted-grid" style="display:none"></div>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn btn-secondary" onclick="skipDocs()">Salta — inserisco manualmente</button>
+    <button class="btn btn-primary" onclick="goStep(1)" id="btn-next-docs" style="margin-left:auto">Avanti →</button>
+  </div>
+</div>
+
+<!-- ═══ STEP 1: PARAMETRI ═══ -->
+<div id="step-1" class="section">
+  <div class="card">
+    <div class="card-title">Dati fatturazione anno corrente</div>
+    <div class="field-grid">
+      <div class="field">
+        <div class="field-label-row">
+          <span class="field-label">Fatturato (€)</span>
+          <span class="field-src manual" id="src-fatt">manuale</span>
+          <button class="helper-btn" onclick="openTip('fatt')">?</button>
+        </div>
+        <input type="number" id="i-fatt" value="" placeholder="es. 25.000" min="0" step="1">
+      </div>
+      <div class="field">
+        <div class="field-label-row">
+          <span class="field-label">N. fatture con bollo</span>
+          <span class="field-src manual" id="src-bolli">manuale</span>
+          <button class="helper-btn" onclick="openTip('bolli')">?</button>
+        </div>
+        <input type="number" id="i-bolli" value="" placeholder="es. 20" min="0" step="1">
+      </div>
+      <div class="field">
+        <div class="field-label-row">
+          <span class="field-label">Coefficiente redditività (%)</span>
+          <button class="helper-btn" onclick="openTip('coeff')">?</button>
+        </div>
+        <input type="number" id="i-coeff" value="78" min="1" max="100" step="0.01">
+      </div>
+      <div class="field">
+        <div class="field-label-row">
+          <span class="field-label">Imposta sostitutiva (%)</span>
+          <button class="helper-btn" onclick="openTip('aliq')">?</button>
+        </div>
+        <input type="number" id="i-aliq" value="15" min="5" max="15" step="5">
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Contributi &amp; acconti già versati</div>
+    <div class="field-grid">
+      <div class="field">
+        <div class="field-label-row">
+          <span class="field-label">INPS deducibili (€)</span>
+          <span class="field-src manual" id="src-inpsDed">manuale</span>
+          <button class="helper-btn" onclick="openTip('inpsDed')">?</button>
+        </div>
+        <input type="number" id="i-inps-ded" value="" placeholder="es. 4.466" min="0" step="0.01">
+      </div>
+      <div class="field">
+        <div class="field-label-row">
+          <span class="field-label">Aliquota INPS GS (%)</span>
+          <button class="helper-btn" onclick="openTip('inpsAliq')">?</button>
+        </div>
+        <input type="number" id="i-inps-aliq" value="26.07" min="20" max="35" step="0.01">
+      </div>
+      <div class="field">
+        <div class="field-label-row">
+          <span class="field-label">Acconti imp. sost. (€)</span>
+          <span class="field-src manual" id="src-accImp">manuale</span>
+          <button class="helper-btn" onclick="openTip('accImp')">?</button>
+        </div>
+        <input type="number" id="i-acc-imp" value="" placeholder="es. 800" min="0" step="0.01">
+      </div>
+      <div class="field">
+        <div class="field-label-row">
+          <span class="field-label">Acconti INPS versati (€)</span>
+          <span class="field-src manual" id="src-accInps">manuale</span>
+          <button class="helper-btn" onclick="openTip('accInps')">?</button>
+        </div>
+        <input type="number" id="i-acc-inps" value="" placeholder="es. 3.784" min="0" step="0.01">
+      </div>
+      <div class="field">
+        <div class="field-label-row">
+          <span class="field-label">Credito anno prec. (€)</span>
+          <span class="field-src manual" id="src-credito">manuale</span>
+          <button class="helper-btn" onclick="openTip('credito')">?</button>
+        </div>
+        <input type="number" id="i-credito" value="0" min="0" step="0.01">
+      </div>
+      <div class="field">
+        <div class="field-label-row">
+          <span class="field-label">Mesi al F24 di giugno</span>
+          <button class="helper-btn" onclick="openTip('mesi')">?</button>
+        </div>
+        <input type="number" id="i-mesi" value="" placeholder="es. 6" min="1" max="12" step="1">
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-secondary" onclick="goStep(0)">← Documenti</button>
+      <button class="btn btn-primary btn-lg" onclick="calcola()" style="margin-top:0;flex:1">Calcola →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ STEP 2: CALCOLO ═══ -->
+<div id="step-2" class="section">
+  <div class="accent-strip">
+    <strong>Perché il totale da versare supera il carico fiscale reale?</strong><br>
+    Il F24 include sia i <em>saldi dell'anno corrente</em> che gli <em>acconti anticipati per l'anno prossimo</em>.
+    Gli acconti non sono costi extra: saranno già pagati quando compilerai la dichiarazione del prossimo anno.
+  </div>
+
+  <div class="f24-trio">
+    <div class="f24-card"><div class="f24-eyebrow">F24 giugno</div><div class="f24-date">Scad. 30/06</div><div class="f24-amount" id="r-f1">—</div></div>
+    <div class="f24-card"><div class="f24-eyebrow">F24 dicembre</div><div class="f24-date">Scad. 01/12</div><div class="f24-amount" id="r-f2">—</div></div>
+    <div class="f24-card highlight"><div class="f24-eyebrow">Totale anno</div><div class="f24-date">Somma F24</div><div class="f24-amount" id="r-tot">—</div></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Passaggi del calcolo</div>
+    <div class="step-list" id="steps-out"></div>
+  </div>
+
+  <div class="mini-cards" id="mini-cards-calc"></div>
+
+  <div class="btn-row">
+    <button class="btn btn-secondary" onclick="goStep(1)">← Parametri</button>
+    <button class="btn btn-primary" onclick="goStep(3)" style="margin-left:auto">Vedi F24 →</button>
+  </div>
+</div>
+
+<!-- ═══ STEP 3: F24 ═══ -->
+<div id="step-3" class="section">
+  <div class="card-title" style="padding-left:.1rem;margin-bottom:.6rem">Da versare — anno corrente</div>
+
+  <div class="f24-box">
+    <div class="f24-box-hdr"><span class="f24-box-title">Scadenza 30 giugno</span><span class="f24-box-badge" id="f1-badge">—</span></div>
+    <div class="f24-line"><span class="f24-cod">1790</span><span class="f24-desc">Saldo imposta sostitutiva anno prec.</span><span class="f24-amt" id="f1r1">—</span></div>
+    <div class="f24-line"><span class="f24-cod">1790</span><span class="f24-desc">1° acconto imposta sostitutiva</span><span class="f24-amt" id="f1r2">—</span></div>
+    <div class="f24-line"><span class="f24-cod">0900</span><span class="f24-desc">Saldo contributi INPS GS anno prec.</span><span class="f24-amt" id="f1r3">—</span></div>
+    <div class="f24-line"><span class="f24-cod">0900</span><span class="f24-desc">1° acconto contributi INPS GS</span><span class="f24-amt" id="f1r4">—</span></div>
+    <div class="f24-total-row"><span>Totale F24 giugno</span><span id="f1tot">—</span></div>
+  </div>
+
+  <div class="f24-box">
+    <div class="f24-box-hdr"><span class="f24-box-title">Scadenza 1 dicembre</span><span class="f24-box-badge" id="f2-badge">—</span></div>
+    <div class="f24-line"><span class="f24-cod">1791</span><span class="f24-desc">2° acconto imposta sostitutiva</span><span class="f24-amt" id="f2r1">—</span></div>
+    <div class="f24-line"><span class="f24-cod">0900</span><span class="f24-desc">2° acconto contributi INPS GS</span><span class="f24-amt" id="f2r2">—</span></div>
+    <div class="f24-total-row"><span>Totale F24 dicembre</span><span id="f2tot">—</span></div>
+  </div>
+
+  <div class="mini-cards">
+    <div class="mini-card red"><div class="mini-lbl">Totale esborso</div><div class="mini-val" id="f24-tot">—</div></div>
+    <div class="mini-card"><div class="mini-lbl">Solo saldi anno prec.</div><div class="mini-val" id="f24-saldi">—</div><div class="mini-sub">Dovuti entro giugno</div></div>
+    <div class="mini-card blue"><div class="mini-lbl">Carico fiscale reale</div><div class="mini-val" id="f24-reale">—</div><div class="mini-sub">Imposta + INPS</div></div>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn btn-secondary" onclick="goStep(2)">← Calcolo</button>
+    <button class="btn btn-primary" onclick="goStep(4)" style="margin-left:auto">Confronto →</button>
+  </div>
+</div>
+
+<!-- ═══ STEP 4: CONFRONTO ═══ -->
+<div id="step-4" class="section">
+  <div class="card">
+    <div class="card-title">Anno precedente vs anno corrente</div>
+    <div class="mini-cards" id="cfr-cards"><div class="mini-card"><div class="mini-val" style="font-size:.85rem;color:var(--slate-400)">Calcola prima</div></div></div>
+    <div class="chart-wrap"><canvas id="chartCfr" role="img" aria-label="Confronto anni"></canvas></div>
+  </div>
+  <div class="btn-row">
+    <button class="btn btn-secondary" onclick="goStep(3)">← F24</button>
+    <button class="btn btn-primary" onclick="goStep(5)" style="margin-left:auto">Accantonamento →</button>
+  </div>
+</div>
+
+<!-- ═══ STEP 5: ACCANTONAMENTO ═══ -->
+<div id="step-5" class="section">
+  <div class="acc-banner">
+    <div><div class="acc-label">Da accantonare ogni mese</div><div class="acc-sub">Per coprire il F24 di giugno</div></div>
+    <div class="acc-val" id="acc-rate">—</div>
+  </div>
+  <div class="card">
+    <div class="card-title">Accumulo progressivo verso il F24</div>
+    <div class="chart-wrap"><canvas id="chartAcc" role="img" aria-label="Accumulo mensile"></canvas></div>
+  </div>
+  <div class="card">
+    <div class="card-title">Utilizzo soglia regime forfettario</div>
+    <div class="soglia-labels" id="soglia-top"><span id="soglia-fatt">—</span><span>Limite: € 85.000</span></div>
+    <div class="soglia-bar-bg"><div class="soglia-bar-fill" id="soglia-fill" style="width:0%"></div></div>
+    <div class="soglia-labels"><span id="soglia-pct" style="color:var(--blue-600);font-weight:600">0%</span><span id="soglia-margine">—</span></div>
+  </div>
+  <div class="btn-row">
+    <button class="btn btn-secondary" onclick="goStep(4)">← Confronto</button>
+    <button class="btn btn-secondary" onclick="goStep(0)">Ricomincia</button>
+  </div>
+</div>
+
+</div><!-- .shell -->
+
+<!-- TOOLTIP MODAL -->
+<div class="tip-overlay" id="tip-overlay" onclick="closeTip(event)">
+  <div class="tip-box">
+    <button class="tip-close" onclick="closeTip(null)">✕</button>
+    <div class="tip-icon" id="tip-icon">💡</div>
+    <div class="tip-title" id="tip-title"></div>
+    <div class="tip-body" id="tip-body"></div>
+    <div class="tip-example" id="tip-example" style="display:none"></div>
+  </div>
+</div>
+
+<!-- PDF.js 2.x legacy con worker inline — nessun file worker separato -->
+
+<!-- Tooltip modal -->
+<div class="tip-overlay" id="tip-overlay" onclick="closeTip(event)">
+  <div class="tip-box">
+    <button class="tip-close" onclick="closeTip(null)">&#x2715;</button>
+    <div class="tip-icon" id="tip-icon">&#x1F4A1;</div>
+    <div class="tip-title" id="tip-title"></div>
+    <div class="tip-body" id="tip-body"></div>
+    <div class="tip-example" id="tip-example" style="display:none"></div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="js/parser.js"></script>
+<script src="js/calcolo.js"></script>
+<script src="js/ui.js"></script>
+</body>
+</html>
