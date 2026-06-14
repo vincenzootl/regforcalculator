@@ -316,32 +316,28 @@ function parseRPF(text) {
   }
 
   // ── ALGORITMO PREDITTIVO QUADRO RR (INPS) ────────────────────
-  // Cerca RR5 (imponibile) e calcola INPS dovuto
   const rrIdx = flat.indexOf('RR5');
   if (rrIdx !== -1) {
     const chunk      = flat.slice(rrIdx, rrIdx + 800);
     const compressed = chunk.replace(/\s+/g, '');
     const amounts    = compressed.match(/\d{1,3}(?:\.\d{3})*,\d{2}/g) || [];
     const vals       = amounts.map(parseIT).filter(v => v >= 10);
-
     if (vals.length > 0) {
       const imponibile = Math.max(...vals);
       const target     = imponibile * 0.2607;
       const dovuto     = vals.find(v => Math.abs(v - target) / target < 0.05);
-
       if (imponibile > 100) {
         result.inpsImponibile = imponibile;
-        logOk(`RR5 Imponibile INPS = € ${fmtEur(imponibile)}`);
+        logOk(`RR5 Imponibile INPS = \u20AC\u00A0${Math.abs(imponibile).toLocaleString('it-IT',{minimumFractionDigits:2,maximumFractionDigits:2})}`);
       }
       if (dovuto) {
         result.inpsDov = dovuto;
-        logOk(`RR6 INPS dovuto = € ${fmtEur(dovuto)}`);
+        logOk(`RR6 INPS dovuto = \u20AC\u00A0${Math.abs(dovuto).toLocaleString('it-IT',{minimumFractionDigits:2,maximumFractionDigits:2})}`);
       }
     }
   }
 
-  // ── Acconti INPS versati (da quadro RR o RR8) ────────────────
-  // Cerca RR7 o RR8 che contiene acconti versati
+  // ── Acconti INPS versati (da quadro RR7/RR8) ─────────────────
   for (const rrRigo of ['RR7','RR8']) {
     const rrAIdx = flat.indexOf(rrRigo);
     if (rrAIdx !== -1 && !result.accInps) {
@@ -351,7 +347,7 @@ function parseRPF(text) {
       const vals       = amounts.map(parseIT).filter(v => v >= 10 && v < 30000);
       if (vals.length > 0) {
         result.accInps = vals[0];
-        logOk(`${rrRigo} Acconti INPS versati = € ${fmtEur(vals[0])}`);
+        logOk(`${rrRigo} Acconti INPS versati = \u20AC\u00A0${Math.abs(vals[0]).toLocaleString('it-IT',{minimumFractionDigits:2,maximumFractionDigits:2})}`);
       }
     }
   }
@@ -365,82 +361,99 @@ function parseRPF(text) {
 
 function parseRedditi(text) { return parseRPF(text); }
 
-/* ── PARSER FattureInCloud XML ──────────────────────────────── */
+/* ── PARSER FattureInCloud XML (SpreadsheetML) ──────────────── */
 function parseFIC(text) {
-  logInfo('FattureInCloud: estrazione dati XML in corso...');
-  const result = { fatt: 0, nFatture: 0, fattureCon: 0, fattSenzaBollo: 0 };
+  logInfo('FattureInCloud: estrazione dati XML SpreadsheetML...');
+  const result = { fatt: 0, nFatture: 0, fattureCon: 0 };
 
-  // ── Strategia 1: "Totale Annuo" nel testo flat ───────────────
+  // ── Strategia 1: Riga "Totale Annuo" SpreadsheetML ──────────
+  // Il file FIC è un SpreadsheetML (Excel-XML).
+  // La riga "Totale Annuo" contiene: col1=label, col2=imponibile emesse, col3=IVA, ...
   const totAnnuoIdx = text.indexOf('Totale Annuo');
   if (totAnnuoIdx !== -1) {
-    const chunk = text.slice(totAnnuoIdx, totAnnuoIdx + 600);
-    // Numero puro senza virgola (es. >25000<) o con decimale
-    const numMatches = chunk.match(/>(\d+(?:[.,]\d+)?)</g) || [];
-    for (const m of numMatches) {
-      const raw = m.replace(/[><]/g, '').replace(',', '.');
-      const v   = parseFloat(raw);
-      if (v >= 1000 && v < 500000) {
-        result.fatt = Math.round(v * 100) / 100;
-        logOk(`Totale Annuo trovato = € ${fmtEur(result.fatt)}`);
-        break;
-      }
+    const rowStart = text.lastIndexOf('<Row', totAnnuoIdx);
+    const rowEnd   = text.indexOf('</Row>', totAnnuoIdx) + 6;
+    const rowText  = text.slice(rowStart, rowEnd);
+    const numRe    = /<Data\s+ss:Type="Number">([^<]+)<\/Data>/g;
+    const vals     = [];
+    let mNum;
+    while ((mNum = numRe.exec(rowText)) !== null) {
+      const v = parseFloat(mNum[1]);
+      if (!isNaN(v) && v > 0) vals.push(v);
+    }
+    const fatturato = vals.find(v => v >= 100 && v < 500000);
+    if (fatturato) {
+      result.fatt = Math.round(fatturato * 100) / 100;
+      logOk(`Totale Annuo (SpreadsheetML) = \u20AC\u00A0${result.fatt.toLocaleString('it-IT',{minimumFractionDigits:2,maximumFractionDigits:2})}`);
     }
   }
 
-  // ── Strategia 2: somma di tutti gli <importo> / <amount> ─────
+  // ── Strategia 2: fallback — somma totali mensili emesse ─────
   if (!result.fatt) {
-    // Tag tipici dell'export FIC: <importo_totale>, <totale>, <amount>
-    const tagPatterns = [
-      /<(?:importo_totale|totale_fattura|net_amount|amount|grand_total)>([^<]+)<\//gi,
-    ];
-    let sum = 0, cnt = 0;
-    for (const re of tagPatterns) {
-      let m;
-      while ((m = re.exec(text)) !== null) {
-        const v = parseFloat(m[1].replace(',','.'));
-        if (!isNaN(v) && v > 0 && v < 500000) { sum += v; cnt++; }
+    const emesseBlocks = text.split('Fatture emesse');
+    let sum = 0;
+    for (let i = 1; i < emesseBlocks.length; i++) {
+      const block  = emesseBlocks[i].split(/Fatture ricevute|Totale Annuo/)[0];
+      const totIdx = block.indexOf('>Totale<');
+      if (totIdx !== -1) {
+        const rStart  = block.lastIndexOf('<Row', totIdx);
+        const rEnd    = block.indexOf('</Row>', totIdx) + 6;
+        const rowTxt  = block.slice(rStart, rEnd);
+        const numRe2  = /<Data\s+ss:Type="Number">([^<]+)<\/Data>/g;
+        let mN, first = true;
+        while ((mN = numRe2.exec(rowTxt)) !== null) {
+          const v = parseFloat(mN[1]);
+          if (first && !isNaN(v) && v > 0) { sum += v; first = false; }
+        }
       }
     }
-    if (cnt > 0 && sum > 0) {
+    if (sum >= 100) {
       result.fatt = Math.round(sum * 100) / 100;
-      logOk(`Somma da tag XML = € ${fmtEur(result.fatt)} (${cnt} righe)`);
+      logOk(`Fatturato da totali mensili emesse = \u20AC\u00A0${result.fatt.toLocaleString('it-IT',{minimumFractionDigits:2,maximumFractionDigits:2})}`);
     }
   }
 
   // ── Conta fatture emesse ─────────────────────────────────────
-  // Metodo A: conta <invoice> o <fattura> o <document> tag
-  const tagFattura = (text.match(/<(?:invoice|fattura|document|sale_invoice)\b/gi) || []).length;
-  if (tagFattura > 0) {
-    result.nFatture = tagFattura;
-    logOk(`Fatture emesse (tag XML): ${tagFattura}`);
-  } else {
-    // Metodo B: conta T00:00:00 (data ISO nelle celle)
-    const dateCount = (text.match(/T00:00:00/g) || []).length;
-    if (dateCount > 0) {
-      result.nFatture = dateCount;
-      logOk(`Fatture emesse (date ISO): ${dateCount}`);
-    }
+  // Il formato SpreadsheetML FIC usa ss:Type="DateTime" per le date di ogni fattura
+  // Conta solo nelle sezioni "Fatture emesse" (non "ricevute")
+  const emesseSections = text.split(/Fatture emesse/g);
+  let nFattureEmesse = 0;
+  for (let i = 1; i < emesseSections.length; i++) {
+    const block = emesseSections[i].split(/Fatture ricevute|Totale Annuo|>Totale</)[0];
+    nFattureEmesse += (block.match(/ss:Type="DateTime"/g) || []).length;
+  }
+  if (nFattureEmesse > 0) {
+    result.nFatture = nFattureEmesse;
+    logOk(`Fatture emesse contate: ${nFattureEmesse}`);
   }
 
-  // ── Conta fatture con bollo (importo > 77,47 e IVA 0%) ──────
-  // Cerca pattern: esenzione IVA + importo > 77,47
-  // Cerca tag <aliquota_iva>0</aliquota_iva> vicino a importi > 77,47
-  const exemptBlocks = text.match(/<(?:aliquota_iva|vat_rate|tax_rate)>0[.,]?0*<\/[^>]+>[\s\S]{0,500}/gi) || [];
+  // ── Conta fatture con bollo (imponibile > 77,47 per fattura) ─
+  // Nel forfettario IVA=0. Ogni Row di dati con imponibile > 77,47 = bollo
   let conBollo = 0;
-  for (const block of exemptBlocks) {
-    const amtM = block.match(/>\s*(\d+(?:[.,]\d+)?)\s*</);
-    if (amtM) {
-      const v = parseFloat(amtM[1].replace(',', '.'));
-      if (v > 77.47) conBollo++;
+  for (let i = 1; i < emesseSections.length; i++) {
+    const block  = emesseSections[i].split(/Fatture ricevute|Totale Annuo|>Totale</)[0];
+    // Considera solo le righe con un DateTime (= riga di fattura, non header)
+    const rowRe  = /<Row>((?:(?!<Row>)[\s\S])*?ss:Type="DateTime"(?:(?!<Row>)[\s\S])*?)<\/Row>/g;
+    let mRow;
+    while ((mRow = rowRe.exec(block)) !== null) {
+      // Trova primo Number > 0 nella riga (= imponibile)
+      const numM = mRow[1].match(/<Data\s+ss:Type="Number">([\d.]+)<\/Data>/);
+      if (numM) {
+        const imponibile = parseFloat(numM[1]);
+        if (!isNaN(imponibile) && imponibile > 77.47) conBollo++;
+      }
     }
   }
   if (conBollo > 0) {
     result.fattureCon = conBollo;
-    logOk(`Fatture con marca da bollo stimate: ${conBollo}`);
+    logOk(`Fatture con marca da bollo (imponibile > 77,47): ${conBollo}`);
   } else if (result.nFatture > 0) {
-    // Fallback: assume tutte le fatture con bollo se non rilevabile
     result.fattureCon = result.nFatture;
-    logInfo(`Bolli: nessuna discriminazione IVA trovata, assumo tutte ${result.nFatture} fatture con bollo`);
+    logInfo(`Bolli: impossibile discriminare importo, uso totale fatture: ${result.nFatture}`);
+  }
+
+  if (result.fatt > 0) {
+    logInfo('ℹ️ FIC: estrae fatturato e n. fatture. Per INPS/acconti/credito carica i PDF della dichiarazione (RPF) e i tuoi F24.');
   }
 
   return result;

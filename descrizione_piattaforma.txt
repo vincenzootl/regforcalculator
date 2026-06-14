@@ -48,11 +48,16 @@ Quando l'utente carica i documenti, il sistema tenta di precompilare:
 - Anno d'imposta dal testo
 - Coefficiente redditività da testo o LM23
 
-### FattureInCloud XML (type='fic', XML)
-- Strategia 1: "Totale Annuo" → importo annuo
-- Strategia 2: somma tag <importo_totale>/<totale_fattura>/<amount>
-- Conteggio fatture: tag <invoice>/<fattura>/<document> o date ISO T00:00:00
-- Discriminazione bolli: tag aliquota_iva=0 + importo > 77,47
+### FattureInCloud XML (type='fic', XML — formato SpreadsheetML)
+Il file è un Excel-XML (SpreadsheetML) con namespace urn:schemas-microsoft-com:office:spreadsheet.
+- Struttura: <Row> con <Cell><Data ss:Type="Number|String|DateTime">valore</Data></Cell>
+- Strategia 1: individua la riga "Totale Annuo" → prima cella Number >= 100 = fatturato lordo annuo
+- Strategia 2 (fallback): somma la prima cella numerica di ogni riga "Totale" mensile nelle sezioni "Fatture emesse"
+- Conteggio fatture: conta ss:Type="DateTime" nelle sezioni "Fatture emesse" (esclude "Fatture ricevute")
+- Bolli: per ogni Row con DateTime, controlla primo Number > 77,47 → conta come fattura con bollo
+  Se impossibile discriminare, usa il totale fatture come fallback
+- NOTA: da FIC si estraggono SOLO fatturato e n. fatture.
+  INPS deducibili, acconti imp.sost. e credito provengono dai PDF RPF/F24.
 
 ## Merge intelligente
 - Campi accumulabili (multi-F24): totaleVersato, acc0900, acc1790, acc1791, acc1792, fatt, nFatture, fattureCon
