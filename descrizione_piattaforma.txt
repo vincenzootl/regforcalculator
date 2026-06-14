@@ -17,14 +17,14 @@ Aggiornato: 2026-06-14
 
 ## Campi precompilati automaticamente
 Quando l'utente carica i documenti, il sistema tenta di precompilare:
-1. i-fatt       → fatturato (da LM22 RPF o Totale Annuo FIC)
+1. i-fatt       → fatturato corrente (da Totale Annuo FIC)
 2. i-bolli      → n. fatture con bollo (da FIC: fattureCon > nFatture)
 3. i-coeff      → coefficiente redditività (da LM/ATECO RPF)
 4. i-aliq       → aliquota imposta sostitutiva (calcolata da RPF: LM39 / LM36)
 5. i-inps-ded   → INPS deducibili (da LM35 RPF o totale cod.0900 F24 di tutti i periodi)
 6. i-acc-imp    → acconti imposta sost. (da LM45 RPF o cod.1790+1791 F24)
-7. i-acc-inps   → acconti INPS versati (da cod.0900 F24 per l'anno corrente o RR7/RR8 RPF)
-8. i-credito    → credito anno prec. (da RX31 o LM47 RPF)
+7. i-acc-inps   → acconti INPS versati (da cod.0900 F24 per l'anno corrente o stimati da ricevute F24 e RPF)
+8. i-credito    → credito anno prec. (da RX31 o LM43 RPF)
 9. i-mesi       → mesi al F24 di giugno (calcolato automaticamente dalla data corrente)
 
 ## Documenti supportati e parser
@@ -40,7 +40,7 @@ Quando l'utente carica i documenti, il sistema tenta di precompilare:
   - Coefficiente di redditività: estratto dal valore di 2 cifre che segue immediatamente i codici ATECO.
   - Aliquota imposta: calcolata direttamente dal rapporto matematico tra imposta LM39 e reddito netto LM36 (5% o 15%).
   - Credito residuo: estratto da quadro RX31 (pag.16) o fallback LM43/LM44 (pag.6).
-  - Quadro RR: imponibile e INPS dovuto estratti verificando la corrispondenza con l'aliquota INPS GS del 26,07%.
+  - Quadro RR: imponibile, INPS dovuto e saldo INPS estratti tramite l'ordinamento decrescente dei valori (Imponibile > Dovuto > Acconti > Saldo).
 
 ### FattureInCloud XML (type='fic', XML — formato SpreadsheetML)
 Il file è un Excel-XML (SpreadsheetML) con namespace urn:schemas-microsoft-com:office:spreadsheet.

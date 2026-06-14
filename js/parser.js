@@ -434,15 +434,19 @@ function parseRPF(text) {
         const val = parseIT(mrr[0]);
         if (val && val >= 100) rrVals.push(val);
       }
-      if (rrVals.length > 0) {
-        result.inpsImponibile = rrVals[0];
-        logOk(`RR5 Imponibile INPS = € ${fmtEur(rrVals[0])}`);
-        const target = rrVals[0] * 0.2607;
-        const dov = rrVals.find(v => Math.abs(v - target) / target < 0.10);
-        if (dov) {
-          result.inpsDov = dov;
-          logOk(`RR6 INPS dovuto = € ${fmtEur(dov)}`);
-        }
+      const uniqueVals = [...new Set(rrVals)].sort((a,b) => b-a);
+      if (uniqueVals.length >= 4) {
+        result.inpsImponibile = uniqueVals[0];
+        result.inpsDov        = uniqueVals[1];
+        result.inpsSaldo      = uniqueVals[3];
+        logOk(`RR5 Imponibile INPS = € ${fmtEur(result.inpsImponibile)}`);
+        logOk(`RR6 INPS dovuto = € ${fmtEur(result.inpsDov)}`);
+        logOk(`RR9 INPS saldo a debito = € ${fmtEur(result.inpsSaldo)}`);
+      } else if (uniqueVals.length >= 2) {
+        result.inpsImponibile = uniqueVals[0];
+        result.inpsDov        = uniqueVals[1];
+        logOk(`RR5 Imponibile INPS = € ${fmtEur(result.inpsImponibile)}`);
+        logOk(`RR6 INPS dovuto = € ${fmtEur(result.inpsDov)}`);
       }
     }
   }
@@ -574,37 +578,54 @@ async function processFiles(fileList, type) {
   setBadge(type, fileList.map(f => f.name));
   files[type] = fileList;
 
-  for (const file of fileList) {
-    try {
-      let parsed = {};
-      const isPDF = file.name.toLowerCase().endsWith('.pdf');
-      const isXML = /\.(xml)$/i.test(file.name);
+  // Resetta lo stato estratto per ricalcolarlo in modo pulito da tutti i file attualmente caricati
+  for (const k of Object.keys(extracted)) delete extracted[k];
+  for (const k of Object.keys(prevYear)) delete prevYear[k];
 
-      if (isPDF) {
-        const text = await pdfToText(file);
-        if      (type === 'f24')     parsed = parseF24(text);
-        else if (type === 'rpf')     parsed = parseRPF(text);
-        else if (type === 'redditi') parsed = parseRedditi(text);
-      } else if (isXML) {
-        const text = await file.text();
-        if (type === 'fic') parsed = parseFIC(text);
-      }
+  // Rielabora tutti gli slot attivi
+  for (const [slotType, list] of Object.entries(files)) {
+    if (!list) continue;
+    for (const file of list) {
+      try {
+        let parsed = {};
+        const isPDF = file.name.toLowerCase().endsWith('.pdf');
+        const isXML = /\.(xml)$/i.test(file.name);
 
-      // ── MERGE INTELLIGENTE ────────────────────────────────────
-      const ACCUMULATE = ['totaleVersato','acc0900','acc1790','acc1791','acc1792','fatt','nFatture','fattureCon'];
-      for (const [key, val] of Object.entries(parsed)) {
-        if (val == null || val === false) continue;
-        if (ACCUMULATE.includes(key)) {
-          if (val === 0) continue;
-          extracted[key] = (extracted[key] || 0) + val;
-        } else if (key === 'isRicevuta' || key === 'isGrafico') {
-          extracted[key] = extracted[key] || val;
-        } else {
-          if (val !== 0 || extracted[key] == null) extracted[key] = val;
+        if (isPDF) {
+          const text = await pdfToText(file);
+          if      (slotType === 'f24')     parsed = parseF24(text);
+          else if (slotType === 'rpf')     parsed = parseRPF(text);
+          else if (slotType === 'redditi') parsed = parseRedditi(text);
+        } else if (isXML) {
+          const text = await file.text();
+          if (slotType === 'fic') parsed = parseFIC(text);
         }
+
+        // ── MERGE INTELLIGENTE ────────────────────────────────────
+        const ACCUMULATE = ['totaleVersato','acc0900','acc1790','acc1791','acc1792','accInps','nFatture','fattureCon'];
+        for (const [key, val] of Object.entries(parsed)) {
+          if (val == null || val === false) continue;
+          
+          if (key === 'fatt') {
+            // Se proviene da RPF/redditi (dichiarazione anno precedente), va in prevYear e NON nel fatturato corrente
+            if (slotType === 'rpf' || slotType === 'redditi') {
+              prevYear.fatt = val;
+            } else {
+              // Da FIC (anno corrente), si imposta/accumula in extracted.fatt
+              extracted.fatt = (extracted.fatt || 0) + val;
+            }
+          } else if (ACCUMULATE.includes(key)) {
+            if (val === 0) continue;
+            extracted[key] = (extracted[key] || 0) + val;
+          } else if (key === 'isRicevuta' || key === 'isGrafico') {
+            extracted[key] = extracted[key] || val;
+          } else {
+            if (val !== 0 || extracted[key] == null) extracted[key] = val;
+          }
+        }
+      } catch(e) {
+        logErr(`Errore lettura ${file.name}: ${e.message}`);
       }
-    } catch(e) {
-      logErr(`Errore lettura ${file.name}: ${e.message}`);
     }
   }
 
@@ -711,18 +732,27 @@ function prefillFields() {
     if (accInps)            setField('i-acc-inps', 'accInps', accInps);
 
   } else if (hasRicevuta || extracted.isGrafico) {
-    if (extracted.inpsDed)  setField('i-inps-ded', 'inpsDed', extracted.inpsDed);
+    const totF24  = extracted.totaleVersato || 0;
+    const accImp  = extracted.accImp || 0;
+    const credito = (extracted.lm43 > 0) ? extracted.lm43 : (extracted.credito || 0);
+    const impCash = Math.max(0, accImp - credito);
+    const inpsDed = Math.max(0, totF24 - impCash);
+    
+    if (inpsDed > 0) {
+      setField('i-inps-ded', 'inpsDed', inpsDed);
+      logInfo(`INPS deducibili calcolati da ricevute F24: € ${fmtEur(inpsDed)}`);
+      
+      const inpsSaldo = extracted.inpsSaldo || 0;
+      const accInps   = Math.max(0, inpsDed - inpsSaldo);
+      if (accInps > 0) {
+        setField('i-acc-inps', 'accInps', accInps);
+        logInfo(`Acconti INPS calcolati da ricevute F24: € ${fmtEur(accInps)}`);
+      }
+    } else {
+      if (extracted.inpsDed)  setField('i-inps-ded', 'inpsDed', extracted.inpsDed);
+      if (extracted.accInps)  setField('i-acc-inps', 'accInps', extracted.accInps);
+    }
     if (extracted.accImp)   setField('i-acc-imp',  'accImp',  extracted.accImp);
-    const totF24     = extracted.totaleVersato || 0;
-    const accImpNota = extracted.accImp || 0;
-    const stima      = Math.max(0, totF24 - accImpNota);
-    if (stima > 0 && !extracted.inpsDed) {
-      setField('i-acc-inps', 'accInps', stima);
-      logWarn(`Acconti INPS stimati: € ${fmtEur(stima)}`);
-    }
-    if (extracted.accInps && !document.getElementById('i-acc-inps')?.classList.contains('auto-filled')) {
-      setField('i-acc-inps', 'accInps', extracted.accInps);
-    }
 
   } else {
     // Solo RPF
@@ -732,13 +762,14 @@ function prefillFields() {
   }
 
   // Credito anno precedente
-  if (extracted.credito != null) setField('i-credito', 'credito', extracted.credito);
+  const creditoVal = (extracted.lm43 > 0) ? extracted.lm43 : (extracted.credito != null ? extracted.credito : null);
+  if (creditoVal != null) setField('i-credito', 'credito', creditoVal);
 
   // Dati anno precedente per il confronto
   if (extracted.redLordo) prevYear.redLordo = extracted.redLordo;
   if (extracted.imposta)  prevYear.imposta  = extracted.imposta;
   if (extracted.inpsDov)  prevYear.inpsDov  = extracted.inpsDov;
-  if (extracted.fatt)     prevYear.fatt     = extracted.fatt;
+  if (prevYear.fatt == null && extracted.fatt) prevYear.fatt = extracted.fatt;
 
   // Riepilogo
   const campiMonitorati = ['i-fatt','i-bolli','i-coeff','i-aliq','i-inps-ded','i-acc-imp','i-acc-inps','i-credito','i-mesi'];
