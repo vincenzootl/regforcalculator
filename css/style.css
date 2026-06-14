@@ -33,12 +33,29 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Inter','Segoe UI',sans-serif;
   border:1px solid var(--blue-100)}
 
 /* ── SHELL ────────────────────────────────────────────────────────── */
-.shell{max-width:700px;margin:0 auto;padding:1.5rem 1rem 4rem}
+.shell{max-width:760px;margin:0 auto;padding:2.5rem 1.5rem 5rem}
+
+/* ── PAGE HEADER ─────────────────────────────────────────────────── */
+.page-header {
+  margin-bottom: 2rem;
+  text-align: center;
+}
+.page-header h1 {
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: var(--slate-900);
+  letter-spacing: -.02em;
+  margin-bottom: .4rem;
+}
+.page-header p {
+  font-size: .88rem;
+  color: var(--slate-500);
+}
 
 /* ── STEPPER ──────────────────────────────────────────────────────── */
-.stepper{display:flex;align-items:center;margin-bottom:1.5rem;
+.stepper{display:flex;align-items:center;margin-bottom:2rem;
   background:var(--surface);border:1px solid var(--border);
-  border-radius:var(--r-xl);padding:.4rem;box-shadow:var(--sh-sm);
+  border-radius:var(--r-xl);padding:.5rem;box-shadow:var(--sh-sm);
   overflow-x:auto;scrollbar-width:none}
 .stepper::-webkit-scrollbar{display:none}
 .step-btn{flex:1;min-width:80px;display:flex;flex-direction:column;
@@ -58,15 +75,15 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Inter','Segoe UI',sans-serif;
 
 /* ── CARD ─────────────────────────────────────────────────────────── */
 .card{background:var(--surface);border:1px solid var(--border);
-  border-radius:var(--r-xl);box-shadow:var(--sh-sm);
-  padding:1.25rem 1.5rem;margin-bottom:1rem}
+  border-radius:var(--r-xl);box-shadow:0 1px 3px rgba(15,23,42,.03);
+  padding:1.5rem 1.75rem;margin-bottom:1.5rem}
 .card-title{font-size:.62rem;font-weight:700;letter-spacing:.09em;
   text-transform:uppercase;color:var(--slate-400);margin-bottom:1rem}
 
 /* ── UPLOAD ───────────────────────────────────────────────────────── */
 .upload-grid{display:grid;grid-template-columns:1fr;gap:.75rem}
 .upload-zone{border:1.5px dashed var(--border);border-radius:var(--r-lg);
-  padding:1.1rem 1rem;text-align:center;cursor:pointer;
+  padding:1.6rem 1.5rem;text-align:center;cursor:pointer;
   transition:all .2s;background:var(--bg);position:relative}
 .upload-zone:hover,.upload-zone.drag{border-color:var(--blue-500);background:var(--blue-50)}
 .upload-zone input[type=file]{position:absolute;inset:0;opacity:0;
@@ -99,9 +116,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Inter','Segoe UI',sans-serif;
 .ex-pill-val{font-size:1rem;font-weight:700;color:var(--blue-700)}
 
 /* ── FIELDS ───────────────────────────────────────────────────────── */
-.field-grid{display:grid;grid-template-columns:1fr 1fr;gap:.75rem}
+.field-grid{display:grid;grid-template-columns:1fr 1fr;gap:1.25rem}
 @media(max-width:480px){.field-grid{grid-template-columns:1fr}}
-.field{display:flex;flex-direction:column;gap:.3rem}
+.field{display:flex;flex-direction:column;gap:.5rem}
 .field-label-row{display:flex;align-items:center;gap:.35rem}
 .field-label{font-size:.78rem;font-weight:600;color:var(--slate-700)}
 .field-src{font-size:.6rem;font-weight:700;padding:.1rem .35rem;border-radius:99px;
@@ -131,15 +148,15 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Inter','Segoe UI',sans-serif;
 .btn-secondary{background:var(--surface);color:var(--slate-700);border:1px solid var(--border)}
 .btn-secondary:hover{background:var(--bg)}
 .btn-lg{width:100%;justify-content:center;padding:.75rem;font-size:.95rem;margin-top:1rem}
-.btn-row{display:flex;gap:.6rem;margin-top:1rem}
+.btn-row{display:flex;gap:.88rem;margin-top:1.5rem}
 @media(max-width:420px){.btn-row{flex-direction:column}}
 
 /* ── RESULT CARDS ─────────────────────────────────────────────────── */
-.f24-trio{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.65rem;margin-bottom:1rem}
+.f24-trio{display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;margin-bottom:1.5rem}
 @media(max-width:500px){.f24-trio{grid-template-columns:1fr}}
-.f24-card{border-radius:var(--r-lg);padding:1.1rem 1.15rem;
-  border:1px solid var(--border);background:var(--surface)}
-.f24-card.highlight{background:var(--blue-600);border-color:var(--blue-600)}
+.f24-card{border-radius:var(--r-lg);padding:1.5rem 1.25rem;
+  border:1px solid var(--border);border-left:4px solid var(--blue-500);background:var(--surface)}
+.f24-card.highlight{background:var(--blue-600);border-color:var(--blue-600);border-left:4px solid var(--blue-700)}
 .f24-eyebrow{font-size:.62rem;font-weight:700;letter-spacing:.07em;
   text-transform:uppercase;color:var(--slate-400);margin-bottom:.2rem}
 .f24-card.highlight .f24-eyebrow{color:rgba(255,255,255,.6)}
@@ -150,34 +167,34 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Inter','Segoe UI',sans-serif;
 .f24-card.highlight .f24-amount{color:#fff;font-size:1.65rem}
 
 /* ── MINI CARDS ───────────────────────────────────────────────────── */
-.mini-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));
-  gap:.6rem;margin-bottom:1rem}
+.mini-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));
+  gap:1rem;margin-bottom:1.5rem}
 .mini-card{background:var(--surface);border:1px solid var(--border);
-  border-radius:var(--r-lg);padding:.85rem .9rem}
+  border-left:4px solid var(--slate-400);border-radius:var(--r-lg);padding:1rem 1.15rem}
 .mini-lbl{font-size:.62rem;color:var(--slate-400);font-weight:600;
   text-transform:uppercase;letter-spacing:.05em;margin-bottom:.25rem}
 .mini-val{font-size:1.05rem;font-weight:700;color:var(--slate-900);letter-spacing:-.01em}
 .mini-sub{font-size:.68rem;color:var(--slate-400);margin-top:.15rem}
-.mini-card.blue{border-color:var(--blue-100);background:var(--blue-50)}
+.mini-card.blue{border-color:var(--blue-100);border-left-color:var(--blue-500);background:var(--blue-50)}
 .mini-card.blue .mini-lbl{color:var(--blue-500)}.mini-card.blue .mini-val{color:var(--blue-700)}
-.mini-card.amber{border-color:#FDE68A;background:var(--amber-50)}
+.mini-card.amber{border-color:#FDE68A;border-left-color:var(--amber-500);background:var(--amber-50)}
 .mini-card.amber .mini-lbl{color:var(--amber-500)}.mini-card.amber .mini-val{color:var(--amber-700)}
-.mini-card.red{border-color:var(--red-100);background:var(--red-50)}
+.mini-card.red{border-color:var(--red-100);border-left-color:var(--red-600);background:var(--red-50)}
 .mini-card.red .mini-lbl{color:var(--red-600)}.mini-card.red .mini-val{color:var(--red-700)}
-.mini-card.green{border-color:var(--green-200);background:var(--green-50)}
+.mini-card.green{border-color:var(--green-200);border-left-color:var(--green-600);background:var(--green-50)}
 .mini-card.green .mini-lbl{color:var(--green-600)}.mini-card.green .mini-val{color:var(--green-600)}
 
 /* ── F24 BOX ──────────────────────────────────────────────────────── */
 .f24-box{background:var(--surface);border:1px solid var(--border);
-  border-radius:var(--r-lg);overflow:hidden;margin-bottom:.65rem}
-.f24-box-hdr{padding:.65rem 1rem;background:var(--bg);
+  border-radius:var(--r-lg);overflow:hidden;margin-bottom:1.5rem}
+.f24-box-hdr{padding:1rem 1.25rem;background:var(--bg);
   border-bottom:1px solid var(--border);
   display:flex;justify-content:space-between;align-items:center}
 .f24-box-title{font-size:.78rem;font-weight:700;color:var(--slate-700)}
 .f24-box-badge{font-size:.7rem;font-weight:600;padding:.18rem .5rem;
   border-radius:99px;background:var(--blue-50);color:var(--blue-600)}
-.f24-line{display:flex;align-items:center;gap:.6rem;
-  padding:.5rem 1rem;border-bottom:1px solid var(--border);font-size:.8rem}
+.f24-line{display:flex;align-items:center;gap:.75rem;
+  padding:.75rem 1.25rem;border-bottom:1px solid var(--border);font-size:.8rem}
 .f24-line:last-child{border-bottom:none}
 .f24-cod{font-family:'SF Mono','Fira Code',monospace;font-size:.68rem;
   color:var(--slate-400);min-width:32px;background:var(--bg);
@@ -186,23 +203,23 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Inter','Segoe UI',sans-serif;
 .f24-desc{color:var(--slate-600);flex:1;font-size:.78rem}
 .f24-amt{font-weight:600;color:var(--slate-900);white-space:nowrap;font-size:.85rem}
 .f24-total-row{display:flex;justify-content:space-between;align-items:center;
-  padding:.65rem 1rem;background:var(--blue-50);
+  padding:1rem 1.25rem;background:var(--blue-50);
   border-top:1.5px solid var(--blue-100);
   font-size:.88rem;font-weight:700;color:var(--blue-700)}
 
 /* ── STEP ROWS ────────────────────────────────────────────────────── */
 .step-list{display:flex;flex-direction:column}
 .step-row{display:flex;justify-content:space-between;align-items:baseline;
-  padding:.45rem 0;border-bottom:1px solid var(--border);gap:1rem;font-size:.85rem}
+  padding:.75rem 0;border-bottom:1px solid var(--border);gap:1.25rem;font-size:.85rem}
 .step-row:last-child{border-bottom:none}
-.step-row.sub-total{background:var(--blue-50);margin:.2rem -.25rem;
-  padding:.4rem .25rem;border-radius:var(--r-sm);border:none}
+.step-row.sub-total{background:var(--blue-50);margin:.35rem -.5rem;
+  padding:.65rem .5rem;border-radius:var(--r-sm);border:none}
 .step-lbl{color:var(--slate-600);flex:1}
 .step-lbl.op{color:var(--slate-400);padding-left:.7rem}
 .step-val{font-weight:600;color:var(--slate-900);white-space:nowrap}
 .step-val.neg{color:var(--slate-400)}
 .step-val.accent{color:var(--blue-600)}
-.step-divider{border:none;border-top:1.5px dashed var(--border);margin:.35rem 0}
+.step-divider{border:none;border-top:1.5px dashed var(--border);margin:.75rem 0}
 
 /* ── INFO/ACCENT BOXES ────────────────────────────────────────────── */
 .info-box{background:var(--blue-50);border:1px solid var(--blue-100);
