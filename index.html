@@ -477,19 +477,27 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Inter','Segoe UI',sans-serif;
 
 <!-- PDF.js (legacy bundle con worker inline, funziona su GitHub Pages) -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script>
 'use strict';
 
 /* ── PDF.js worker ─────────────────────────────────────────── */
-// Worker PDF.js: usa blob URL per evitare problemi CORS su GitHub Pages
-try {
-  pdfjsLib.GlobalWorkerOptions.workerSrc =
-    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-} catch(e) {
-  // fallback: worker già caricato inline
-}
+// Worker PDF.js: fetch + blob URL per evitare CORS su GitHub Pages
+// Questo è l'unico metodo affidabile con PDF.js 3.x
+(async () => {
+  try {
+    const workerUrl = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    const resp = await fetch(workerUrl);
+    const blob = await resp.blob();
+    pdfjsLib.GlobalWorkerOptions.workerSrc = URL.createObjectURL(blob);
+    console.log('PDF.js worker caricato via blob URL');
+  } catch(e) {
+    // Fallback: workerSrc diretto (funziona se stesso dominio o CORS ok)
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    console.warn('PDF.js worker fallback a URL diretto:', e.message);
+  }
+})();
 
 /* ── STATE ─────────────────────────────────────────────────── */
 const extracted = {};   // dati estratti dai documenti
