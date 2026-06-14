@@ -1,1 +1,10 @@
 riepilogo economico.xml
+node_modules/
+reference/debug_*.mjs
+reference/debug2.mjs
+reference/test_parser.mjs
+reference/extract_rpf_flat.mjs
+reference/F24_PVNVCN93R12A662R_RPF25 Ricevuta 1.pdf
+reference/F24_PVNVCN93R12A662R_RPF25 Ricevuta 2.pdf
+reference/F24_PVNVCN93R12A662R_RPF25.pdf
+reference/PVNVCN93R12A662R_RPF25.pdf

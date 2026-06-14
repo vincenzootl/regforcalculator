@@ -19,34 +19,28 @@ Aggiornato: 2026-06-14
 Quando l'utente carica i documenti, il sistema tenta di precompilare:
 1. i-fatt       → fatturato (da LM22 RPF o Totale Annuo FIC)
 2. i-bolli      → n. fatture con bollo (da FIC: fattureCon > nFatture)
-3. i-coeff      → coefficiente redditività (da LM23 RPF se presente)
-4. i-aliq       → aliquota imposta sostitutiva (da LM38 RPF: 5% o 15%)
-5. i-inps-ded   → INPS deducibili (da LM35 RPF o cod.0900 F24)
+3. i-coeff      → coefficiente redditività (da LM/ATECO RPF)
+4. i-aliq       → aliquota imposta sostitutiva (calcolata da RPF: LM39 / LM36)
+5. i-inps-ded   → INPS deducibili (da LM35 RPF o totale cod.0900 F24 di tutti i periodi)
 6. i-acc-imp    → acconti imposta sost. (da LM45 RPF o cod.1790+1791 F24)
-7. i-acc-inps   → acconti INPS versati (da cod.0900 F24 o RR7/RR8 RPF)
-8. i-credito    → credito anno prec. (da LM43-LM44 RPF)
+7. i-acc-inps   → acconti INPS versati (da cod.0900 F24 per l'anno corrente o RR7/RR8 RPF)
+8. i-credito    → credito anno prec. (da RX31 o LM47 RPF)
 9. i-mesi       → mesi al F24 di giugno (calcolato automaticamente dalla data corrente)
 
 ## Documenti supportati e parser
 ### F24 (type='f24', PDF)
-- Formato A: Ricevuta (regex "Importo versamento : E. X,XX") → totaleVersato
-- Formato C: F24 digitale con codici tributo 0900/1790/1791/1792 → per codice
-- Formato B: F24 grafico (numeri con spazio "1.892 06") → stima totale
+- Ricevuta: regex "Importo versamento : E. X,XX" → totaleVersato
+- F24 digitale con codici tributo: scansione di ogni pagina separatamente con deduplicazione basata sulla firma dei record di pagamento estratti. Questo previene il conteggio multiplo dovuto alle tre copie (banca/contribuente/destinatario) presenti nel PDF.
+- Distinzione INPS: i tributi 0900 vengono suddivisi in INPS deducibili (somma di tutti i pagamenti effettuati nell'anno) e Acconti INPS versati (solo i pagamenti riferiti all'anno fiscale corrente).
 
 ### RPF / Modello Redditi (type='rpf'|'redditi', PDF)
-- getLM(): helper robusto con compressione spazi e anti-falso-positivo digit-dopo
-- LM22 → fatturato dichiarato
-- LM34 → reddito lordo
-- LM35 → INPS deducibili
-- LM36 → reddito netto
-- LM38 → aliquota imposta (5 o 15%)
-- LM39 → imposta sostitutiva calcolata
-- LM43/LM44 → credito residuo
-- LM45 → acconti imposta versati
-- RR5 → imponibile INPS (algoritmo predittivo con tolleranza 5%)
-- RR7/RR8 → acconti INPS versati
-- Anno d'imposta dal testo
-- Coefficiente redditività da testo o LM23
+- Scansione per pagine:
+  - Anno d'imposta estratto dal testo globale.
+  - Pagina 5 (LM Sezione III): Individuazione dei codici ATECO a 6 cifre e scansione posizionale dei totali di fine quadro (lordo LM34, INPS deducibili LM35, netto LM36, imposta LM39) che seguono l'ultimo codice ATECO.
+  - Coefficiente di redditività: estratto dal valore di 2 cifre che segue immediatamente i codici ATECO.
+  - Aliquota imposta: calcolata direttamente dal rapporto matematico tra imposta LM39 e reddito netto LM36 (5% o 15%).
+  - Credito residuo: estratto da quadro RX31 (pag.16) o fallback LM43/LM44 (pag.6).
+  - Quadro RR: imponibile e INPS dovuto estratti verificando la corrispondenza con l'aliquota INPS GS del 26,07%.
 
 ### FattureInCloud XML (type='fic', XML — formato SpreadsheetML)
 Il file è un Excel-XML (SpreadsheetML) con namespace urn:schemas-microsoft-com:office:spreadsheet.

@@ -116,348 +116,458 @@ function extractAmounts(s) {
   return matches.map(parseIT).filter(v => v !== null && v > 0);
 }
 
-/* ── HELPER: calcola mesi mancanti al 30 giugno ────────────── */
+/* ── HELPER: mesi mancanti al 30 giugno ────────────────────── */
 function calcolaMesiAGiugno() {
-  const now   = new Date();
-  const giugno = new Date(now.getFullYear(), 5, 30); // 30 giugno anno corrente
-  if (now > giugno) {
-    // già passato il 30 giugno: punta al prossimo anno
-    giugno.setFullYear(giugno.getFullYear() + 1);
-  }
-  const msPerMonth = 1000 * 60 * 60 * 24 * 30.44;
-  const mesi = Math.max(1, Math.round((giugno - now) / msPerMonth));
+  const now    = new Date();
+  const giugno = new Date(now.getFullYear(), 5, 30);
+  if (now > giugno) giugno.setFullYear(giugno.getFullYear() + 1);
+  const mesi = Math.max(1, Math.round((giugno - now) / (1000 * 60 * 60 * 24 * 30.44)));
   return Math.min(12, mesi);
 }
 
 /* ── PARSER F24 ──────────────────────────────────────────────── */
+// Dati reali (F24_PVNVCN93R12A662R_RPF25):
+//   Ricevuta:  "Importo versamento : E. 2.819,06"
+//   Digitale:  "1792 0101 2024 66 00"
+//              "1790 0101 2025 311 00"
+//              "0900 PXX 01 2025 12 2025 1.892 06"
+//              "0900 PXX 01 2024 12 2024 682 00"
 function parseF24(text) {
   logInfo('F24: analisi formato PDF...');
-  const result = { acc0900: 0, acc1790: 0, acc1791: 0, acc1792: 0, totaleVersato: 0, isRicevuta: false, isGrafico: false };
-  const flat   = text.replace(/\s+/g, ' ').trim();
+  const result = { acc0900: 0, acc1790: 0, acc1791: 0, acc1792: 0, accInps: 0, totaleVersato: 0, isRicevuta: false, isGrafico: false };
+  const pagesText = text.split('\n').filter(p => p.trim().length > 0);
 
-  // ── FORMATO A: Ricevuta di pagamento ──────────────────────────
-  // Supporta varianti: "Importo versamento : E. 1.234,56"
-  //                    "Importo versamento:E.1.234,56"
-  //                    "Importo versamento : € 1.234,56"
-  const ricevutaRe = /[Ii]mporto\s+versamento\s*:\s*[Ee€\.]+\s*([\d\.\s]+,\s*\d{2})/g;
+  // ── Sezione Ricevute (formato piatto globale) ─────────────────
+  const flatGlobal = text.replace(/\s+/g,' ').trim();
+  const ricevutaRe = /[Ii]mporto\s+versamento\s*:\s*[Ee€\.\s]+\s*([\d\.\s]+,\s*\d{2})/g;
   let mRic, totRic = 0, nRic = 0;
-  while ((mRic = ricevutaRe.exec(flat)) !== null) {
-    const strPulita = mRic[1].replace(/\s+/g, '');
-    const v = parseIT(strPulita);
+  while ((mRic = ricevutaRe.exec(flatGlobal)) !== null) {
+    const v = parseIT(mRic[1].replace(/\s+/g, ''));
     if (v && v > 0 && v < 100000) { totRic += v; nRic++; logOk(`Ricevuta: € ${fmtEur(v)}`); }
   }
   if (nRic > 0) {
-    result.isRicevuta     = true;
-    result.totaleVersato  = Math.round(totRic * 100) / 100;
+    result.isRicevuta    = true;
+    result.totaleVersato = Math.round(totRic * 100) / 100;
     logInfo(`Trovate ${nRic} ricevuta/e. Totale: € ${fmtEur(result.totaleVersato)}`);
     return result;
   }
 
-  // ── FORMATO C: F24 digitale con codici tributo ────────────────
-  const TRIBUTI = [
-    { key: 'acc0900', code: '0900', label: 'INPS GS'          },
-    { key: 'acc1790', code: '1790', label: 'Imp.sost. 1°acc'  },
-    { key: 'acc1791', code: '1791', label: 'Imp.sost. 2°acc'  },
-    { key: 'acc1792', code: '1792', label: 'Credito'          },
-  ];
-  let trovatiCodici = false;
-  for (const t of TRIBUTI) {
-    // Cerca il codice tributo seguito da un importo nella finestra successiva
-    // Tollera spazi attorno al codice: " 0900 " o "0900"
-    const re = new RegExp(`(?<![\\d])${t.code}(?![\\d])`, 'g');
+  // ── Sezione F24 Digitale con deduplicazione pagine ────────────
+  const pageSignatures = new Set();
+  let trovati = false;
+  let maxYear = 0;
+
+  for (let idx = 0; idx < pagesText.length; idx++) {
+    const pText = pagesText[idx];
+    const flat = pText.replace(/\s+/g,' ');
+
+    // Estrai tutti i tributi di questa pagina
+    const pageRecords = [];
+    
+    // Regex per 0900 (INPS GS)
+    const re0900 = /(0900)\s+([A-Z0-9]{3})\s+(\d{2}\s+\d{4}\s+\d{2}\s+\d{4})\s+((?:\d{1,3}(?:\.\d{3})*|\d+)(?:[\s,]\d{2}))/g;
     let m;
-    while ((m = re.exec(flat)) !== null) {
-      const win = flat.slice(m.index + t.code.length, m.index + t.code.length + 100);
-      const stdAmounts = extractAmounts(win).filter(v => v >= 10 && v < 30000);
-      if (stdAmounts.length) {
-        result[t.key] += stdAmounts[0];
-        logOk(`Cod.${t.code} (${t.label}): € ${fmtEur(stdAmounts[0])}`);
-        trovatiCodici = true;
+    while ((m = re0900.exec(flat)) !== null) {
+      const amt = parseIT(m[4].replace(/\s+/, ','));
+      if (amt && amt > 0) {
+        pageRecords.push({ code: '0900', key: `${m[2]}_${m[3]}`, amt });
+      }
+    }
+
+    // Regex per altri tributi (1790, 1791, 1792)
+    const reErario = /(1790|1791|1792)\s+(?:(\d{4})\s+)?(\d{4})\s+((?:\d{1,3}(?:\.\d{3})*|\d+)(?:[\s,]\d{2}))/ig;
+    let me;
+    while ((me = reErario.exec(flat)) !== null) {
+      const code = me[1].toUpperCase();
+      const amt = parseIT(me[4].replace(/\s+/, ','));
+      if (amt && amt > 0) {
+        pageRecords.push({ code, key: `${me[2]||'none'}_${me[3]}`, amt });
+      }
+    }
+
+    if (pageRecords.length === 0) continue;
+
+    // Crea firma per la pagina basata sui record trovati
+    pageRecords.sort((a,b) => (a.code+a.key).localeCompare(b.code+b.key));
+    const sig = pageRecords.map(r => `${r.code}:${r.key}:${r.amt.toFixed(2)}`).join('|');
+
+    if (pageSignatures.has(sig)) {
+      logInfo(`F24: pagina ${idx+1} ignorata (duplicato)`);
+      continue;
+    }
+    pageSignatures.add(sig);
+
+    // Determina l'anno massimo per identificare gli acconti correnti
+    for (const r of pageRecords) {
+      const years = r.key.match(/\b20\d{2}\b/g) || [];
+      for (const y of years) {
+        const yi = parseInt(y, 10);
+        if (yi > maxYear) maxYear = yi;
+      }
+    }
+
+    // Accumula i valori di questa pagina unica
+    for (const r of pageRecords) {
+      const resKey = `acc${r.code}`;
+      if (resKey in result) {
+        result[resKey] += r.amt;
+        logOk(`Trovato Cod.${r.code} su pag.${idx+1}: € ${fmtEur(r.amt)}`);
+        trovati = true;
+      }
+      
+      // Salva acconti INPS GS specificamente se riferiti all'anno corrente (maxYear)
+      if (r.code === '0900') {
+        const years = r.key.match(/\b20\d{2}\b/g) || [];
+        if (years.length > 0 && parseInt(years[years.length - 1], 10) === maxYear) {
+          result.accInps += r.amt;
+          logInfo(`Cod.0900 su pag.${idx+1} registrato come Acconto INPS: € ${fmtEur(r.amt)}`);
+        }
       }
     }
   }
-  if (trovatiCodici) {
-    result.totaleVersato = result.acc0900 + result.acc1790 + result.acc1791;
+
+  if (trovati) {
+    // Round per precisione float
+    result.acc0900 = Math.round(result.acc0900 * 100) / 100;
+    result.acc1790 = Math.round(result.acc1790 * 100) / 100;
+    result.acc1791 = Math.round(result.acc1791 * 100) / 100;
+    result.acc1792 = Math.round(result.acc1792 * 100) / 100;
+    result.accInps = Math.round(result.accInps * 100) / 100;
+
+    result.totaleVersato = Math.round((result.acc0900 + result.acc1790 + result.acc1791) * 100) / 100;
     logInfo(`F24 digitale: totale versato = € ${fmtEur(result.totaleVersato)}`);
     return result;
   }
 
-  // ── FORMATO B: F24 grafico (numeri con spazio: "1.892 06") ───
+  // Grafico puro
   result.isGrafico = true;
   const grafAmounts = [];
-  const grafRe = /(?<!\d)((?:\d{1,3}\.)*\d{1,3})\s+(\d{2})(?!\d)/g;
-  let mGraf;
-  while ((mGraf = grafRe.exec(flat)) !== null) {
-    const v = parseIT(mGraf[1] + ',' + mGraf[2]);
+  const grafRe2 = /(?<!\d)((?:\d{1,3}\.)*\d{1,3})\s+(\d{2})(?!\d)/g;
+  let mG;
+  while ((mG = grafRe2.exec(flatGlobal)) !== null) {
+    const v = parseIT(mG[1] + ',' + mG[2]);
     if (v && v > 0) grafAmounts.push(v);
   }
   const saldi = grafAmounts.filter(v => v >= 100 && v < 100000);
   if (saldi.length) {
-    const saldiSignificativi = [...new Set(saldi.filter(v => v > 1000))].sort((a,b) => b-a);
-    result.totaleVersato = saldiSignificativi.length > 0 ? saldiSignificativi[0] : 0;
-    logOk(`F24 grafico: saldo estrapolato = € ${fmtEur(result.totaleVersato)}`);
+    const sig = [...new Set(saldi.filter(v => v > 1000))].sort((a,b) => b-a);
+    result.totaleVersato = sig.length > 0 ? sig[0] : 0;
+    logOk(`F24 grafico: saldo = € ${fmtEur(result.totaleVersato)}`);
   } else {
-    logWarn('F24: nessun importo estratto — PDF potrebbe essere scansionato o formato sconosciuto');
+    logWarn('F24: nessun importo estratto — PDF potrebbe essere scansionato');
   }
-
   return result;
 }
 
 
 /* ── PARSER RPF / MODELLO REDDITI ────────────────────────────── */
+// Dati reali (PVNVCN93R12A662R_RPF25.pdf):
+//   Pag.5 flat: "...LM 22 LM3 4 LM3 5 LM3 6 LM3 7 LM3 8 LM3 9...
+//                731102   78   5.815   4.536   2  742019 78 5.815 4.536 2...
+//                18.144  5.695  5.695  12.449  12.449  622"
+//   Pag.6 flat: "622  688  66"
+//   LM43=66, LM44=66 → credito=0
+//   Pag.4 RR: "18.144  1  12  C  4.730  4.048  4.730  4.048  682  4.730  682"
 function parseRPF(text) {
   logInfo('RPF/Redditi: scansione quadro LM e RR...');
   const result = {};
-  const flat   = text.replace(/\r\n/g, '\n').replace(/[ \t]+/g, ' ');
+  const pagesText = text.split('\n').filter(p => p.trim().length > 0);
+  const flatGlobal = text.replace(/\r\n|\r|\n/g,' ').replace(/[ \t]+/g,' ');
 
-  // ── Helper: cerca un rigo LM e restituisce il primo importo valido ──
-  function getLM(rigo, minVal, maxVal) {
-    // Accetta: "LM22", "LM 22", "LM022", varianti con zero padding
-    const labels = [
-      `LM${rigo}`,
-      `LM ${rigo}`,
-      `LM0${rigo}`,
-      `LM ${String(rigo).padStart(2,'0')}`,
-    ];
-    for (const lbl of labels) {
-      let searchFrom = 0;
-      while (true) {
-        const idx = flat.indexOf(lbl, searchFrom);
-        if (idx === -1) break;
-        // Verifica che dopo il label non ci sia un altro digit (evita LM220 per LM22)
-        const charAfter = flat[idx + lbl.length];
-        if (charAfter && /\d/.test(charAfter)) { searchFrom = idx + 1; continue; }
+  // Anno d'imposta
+  const annoM = flatGlobal.match(/PERIODO\s+D['']?\s*IMPOSTA\s+(\d{4})/i)
+             || flatGlobal.match(/(?:anno|periodo)\s+d['']?\s*imposta\s+(\d{4})/i);
+  if (annoM) {
+    const a = parseInt(annoM[1],10);
+    if(a>=2018&&a<=2030) { result.annoDichiarazione = a; logOk(`Anno d'imposta: ${a}`); }
+  }
 
-        const chunk           = flat.slice(idx + lbl.length, idx + lbl.length + 400);
-        const compressedChunk = chunk.replace(/\s+/g, '');
-        const amounts         = compressedChunk.match(/\d{1,3}(?:\.\d{3})*,\d{2}/g) || [];
-        const validAmounts    = amounts.map(parseIT).filter(v =>
-          v !== null && v >= (minVal ?? 1) && v <= (maxVal ?? 999999)
-        );
-        if (validAmounts.length) return validAmounts[0];
-        searchFrom = idx + 1;
+  // Cerca la pagina 5 (quadro LM Sezione III)
+  let lmPageText = "";
+  for (const txt of pagesText) {
+    if (txt.includes("QUADRO LM") || txt.includes("SEZIONE III") || txt.includes("LM 22")) {
+      lmPageText = txt;
+      break;
+    }
+  }
+
+  if (lmPageText) {
+    const flatLM = lmPageText.replace(/\r\n|\r|\n/g,' ').replace(/[ \t]+/g,' ');
+    
+    // Trova tutti i codici ATECO (6 cifre)
+    const atecoRe = /\b\d{6}\b/g;
+    const atecoMatches = [];
+    let m;
+    while ((m = atecoRe.exec(flatLM)) !== null) {
+      atecoMatches.push({ code: m[0], index: m.index });
+    }
+
+    if (atecoMatches.length > 0) {
+      // Prendi l'ultimo ATECO per cercare i totali dopo di esso
+      const lastAteco = atecoMatches[atecoMatches.length - 1];
+      const afterAtecoText = flatLM.slice(lastAteco.index);
+      
+      // Estrai tutti i numeri (interi e decimali italiani) dopo l'ultimo ATECO
+      const numRe = /\b\d{1,3}(?:\.\d{3})*(?:,\d{2})?\b|\b\d+\b/g;
+      const vals = [];
+      let mn;
+      while ((mn = numRe.exec(afterAtecoText)) !== null) {
+        const parsed = parseIT(mn[0]);
+        if (parsed !== null) vals.push(parsed);
+      }
+
+      // La sequenza di totali di fine quadro LM contiene almeno 6 elementi:
+      // [RedditoLordo, INPSDeducibile, INPSDeducibile_rip, RedditoNetto, RedditoNetto_rip, ImpostaSostitutiva]
+      if (vals.length >= 6) {
+        const totali = vals.slice(vals.length - 6);
+        result.fatt = totali[0];
+        result.redLordo = totali[0];
+        result.inpsDed = totali[1];
+        result.redNetto = totali[3];
+        result.imposta = totali[5];
+        
+        logOk(`LM22 fatturato = € ${fmtEur(result.fatt)}`);
+        logOk(`LM34 reddito lordo = € ${fmtEur(result.redLordo)}`);
+        logOk(`LM35 INPS deducibili = € ${fmtEur(result.inpsDed)}`);
+        logOk(`LM36 reddito netto = € ${fmtEur(result.redNetto)}`);
+        logOk(`LM39 imposta sostitutiva = € ${fmtEur(result.imposta)}`);
+      }
+
+      // Estrai il coefficiente di redditività dell'attività principale
+      for (const aMatch of atecoMatches) {
+        const localAfter = flatLM.slice(aMatch.index + 6, aMatch.index + 100);
+        const coeffM = localAfter.match(/\b(40|54|62|67|78|86)\b/);
+        if (coeffM) {
+          result.coeff = parseInt(coeffM[1], 10);
+          logOk(`Coefficiente redditività (da dati ATECO) = ${result.coeff}%`);
+          break;
+        }
       }
     }
-    return null;
-  }
 
-  // ── Fatturato (LM22) ──────────────────────────────────────────
-  const lm22 = getLM(22, 100, 500000);
-  if (lm22) { result.fatt = lm22; logOk(`LM22 fatturato = € ${fmtEur(lm22)}`); }
-
-  // ── Anno d'imposta dal documento ─────────────────────────────
-  // Cerca pattern tipo "Anno d'imposta 2024" o "Periodo d'imposta 2024"
-  const annoMatch = flat.match(/(?:anno|periodo)\s+d['']?\s*imposta\s+(\d{4})/i)
-                 || flat.match(/\b(20[12]\d)\b.*?(?:LM|reddito|forfettar)/i);
-  if (annoMatch) {
-    const anno = parseInt(annoMatch[1], 10);
-    if (anno >= 2018 && anno <= 2030) {
-      result.annoDichiarazione = anno;
-      logOk(`Anno d'imposta rilevato: ${anno}`);
+    // Aliquota calcolata
+    if (result.redNetto && result.imposta) {
+      const ratio = (result.imposta / result.redNetto) * 100;
+      if (Math.abs(ratio - 5) < 2.5) { result.aliqImposta = 5; logOk(`Aliquota imposta = 5%`); }
+      else if (Math.abs(ratio - 15) < 2.5) { result.aliqImposta = 15; logOk(`Aliquota imposta = 15%`); }
     }
   }
 
-  // ── Reddito lordo (LM34) ─────────────────────────────────────
-  const lm34 = getLM(34, 100, 500000);
-  if (lm34) { result.redLordo = lm34; logOk(`LM34 reddito lordo = € ${fmtEur(lm34)}`); }
-
-  // ── INPS deducibili (LM35) ───────────────────────────────────
-  const lm35 = getLM(35, 1, 50000);
-  if (lm35) { result.inpsDed = lm35; logOk(`LM35 INPS deducibili = € ${fmtEur(lm35)}`); }
-
-  // ── Reddito netto (LM36) ─────────────────────────────────────
-  const lm36 = getLM(36, 1, 500000);
-  if (lm36) { result.redNetto = lm36; logOk(`LM36 reddito netto = € ${fmtEur(lm36)}`); }
-
-  // ── Imposta sostitutiva calcolata (LM39) ─────────────────────
-  const lm39 = getLM(39, 1, 50000);
-  if (lm39) { result.imposta = lm39; logOk(`LM39 imposta sostitutiva = € ${fmtEur(lm39)}`); }
-
-  // ── Credito (LM43, LM44) ─────────────────────────────────────
-  result.lm43 = getLM(43, 0.01, 10000);
-  result.lm44 = getLM(44, 0.01, 10000);
-
-  // ── Acconti imposta sost. versati (LM45) ─────────────────────
-  const lm45 = getLM(45, 1, 50000);
-  if (lm45) { result.accImp = lm45; logOk(`LM45 acconti imp.sostitutiva = € ${fmtEur(lm45)}`); }
-
-  // ── Calcolo credito residuo ───────────────────────────────────
-  if (result.lm43 != null && result.lm44 != null) {
-    result.credito = Math.max(0, result.lm43 - result.lm44);
-    logOk(`Credito residuo (LM43 − LM44) = € ${fmtEur(result.credito)}`);
-  } else if (result.lm43 != null) {
-    result.credito = result.lm43;
-    logOk(`Credito residuo (LM43) = € ${fmtEur(result.credito)}`);
-  }
-
-  // ── Coefficiente redditività ──────────────────────────────────
-  // Cerca "Percentuale" o "Coefficiente" vicino a LM (es. "78,00" o "67,00")
-  const coeffMatch = flat.match(/coefficiente\s+di\s+redditivit[aà]\s*[:\-]?\s*(\d{1,2}[,.]\d{0,2})/i)
-                  || flat.match(/LM23\D{0,20}?(\d{2}[,.]\d{0,2})/i)
-                  || flat.match(/percentuale\s+forfetaria\s*[:\-]?\s*(\d{1,2}[,.]\d{0,2})/i);
-  if (coeffMatch) {
-    const cv = parseFloat(coeffMatch[1].replace(',', '.'));
-    if (cv >= 40 && cv <= 86) {
-      result.coeff = cv;
-      logOk(`Coefficiente redditività = ${cv}%`);
+  // ── RX Sezione / Credito residuo ──────────────────────────────
+  let rxPageText = "";
+  for (const txt of pagesText) {
+    if (txt.includes("QUADRO RX") || txt.includes("RX31")) {
+      rxPageText = txt;
+      break;
     }
   }
 
-  // ── Aliquota imposta sostitutiva ─────────────────────────────
-  // Cerca "5,00" o "15,00" vicino a "LM38" o "aliquota"
-  const aliqMatch = flat.match(/LM38\D{0,30}?(\d{1,2}[,.]\d{0,2})/i)
-                 || flat.match(/aliquota\s+imposta\s+sostitutiva\D{0,20}?(\d{1,2}[,.]\d{0,2})/i);
-  if (aliqMatch) {
-    const av = parseFloat(aliqMatch[1].replace(',', '.'));
-    if (av === 5 || av === 15) {
-      result.aliqImposta = av;
-      logOk(`Aliquota imposta sostitutiva = ${av}%`);
-    }
-  }
-
-  // ── ALGORITMO PREDITTIVO QUADRO RR (INPS) ────────────────────
-  const rrIdx = flat.indexOf('RR5');
-  if (rrIdx !== -1) {
-    const chunk      = flat.slice(rrIdx, rrIdx + 800);
-    const compressed = chunk.replace(/\s+/g, '');
-    const amounts    = compressed.match(/\d{1,3}(?:\.\d{3})*,\d{2}/g) || [];
-    const vals       = amounts.map(parseIT).filter(v => v >= 10);
-    if (vals.length > 0) {
-      const imponibile = Math.max(...vals);
-      const target     = imponibile * 0.2607;
-      const dovuto     = vals.find(v => Math.abs(v - target) / target < 0.05);
-      if (imponibile > 100) {
-        result.inpsImponibile = imponibile;
-        logOk(`RR5 Imponibile INPS = \u20AC\u00A0${Math.abs(imponibile).toLocaleString('it-IT',{minimumFractionDigits:2,maximumFractionDigits:2})}`);
+  if (rxPageText) {
+    const flatRX = rxPageText.replace(/\r\n|\r|\n/g,' ').replace(/[ \t]+/g,' ');
+    const rx31idx = flatRX.indexOf("RX31");
+    if (rx31idx !== -1) {
+      // Estrai tutti i numeri non-zero dopo RX31
+      const afterRX31 = flatRX.slice(rx31idx);
+      const numRe = /\b\d{1,3}(?:\.\d{3})*(?:,\d{2})?\b|\b\d+\b/g;
+      const rxVals = [];
+      let mrx;
+      while ((mrx = numRe.exec(afterRX31)) !== null) {
+        const val = parseIT(mrx[0]);
+        if (val && val > 0 && val < 50000) rxVals.push(val);
       }
-      if (dovuto) {
-        result.inpsDov = dovuto;
-        logOk(`RR6 INPS dovuto = \u20AC\u00A0${Math.abs(dovuto).toLocaleString('it-IT',{minimumFractionDigits:2,maximumFractionDigits:2})}`);
+      if (rxVals.length >= 2) {
+        result.lm43 = rxVals[0];
+        result.lm44 = rxVals[1];
+        result.credito = Math.max(0, result.lm43 - result.lm44);
+        logOk(`Credito residuo (LM43 − LM44) = € ${fmtEur(result.credito)}`);
       }
     }
   }
 
-  // ── Acconti INPS versati (da quadro RR7/RR8) ─────────────────
-  for (const rrRigo of ['RR7','RR8']) {
-    const rrAIdx = flat.indexOf(rrRigo);
-    if (rrAIdx !== -1 && !result.accInps) {
-      const chunk      = flat.slice(rrAIdx, rrAIdx + 300);
-      const compressed = chunk.replace(/\s+/g, '');
-      const amounts    = compressed.match(/\d{1,3}(?:\.\d{3})*,\d{2}/g) || [];
-      const vals       = amounts.map(parseIT).filter(v => v >= 10 && v < 30000);
-      if (vals.length > 0) {
-        result.accInps = vals[0];
-        logOk(`${rrRigo} Acconti INPS versati = \u20AC\u00A0${Math.abs(vals[0]).toLocaleString('it-IT',{minimumFractionDigits:2,maximumFractionDigits:2})}`);
+  // Fallback se RX31 non trovato, cerca LM43/LM44 a fine pagina 6
+  if (result.lm43 === undefined) {
+    let p6Text = "";
+    for (const txt of pagesText) {
+      if (txt.includes("LM43") || txt.includes("LM44")) {
+        p6Text = txt;
+        break;
+      }
+    }
+    if (p6Text) {
+      const flat6 = p6Text.replace(/\s+/g,' ');
+      const numRe = /\b(\d{1,3}(?:\.\d{3})*)\b/g;
+      let m, nums = [];
+      while ((m = numRe.exec(flat6)) !== null) {
+        const val = parseIT(m[1]);
+        if (val && val > 0) nums.push(val);
+      }
+      if (nums.length > 0) {
+        const lastVal = nums[nums.length - 1];
+        if (lastVal < 10000) {
+          result.lm43 = lastVal;
+          result.lm44 = lastVal;
+          result.credito = 0;
+          logOk(`Credito residuo (LM43 − LM44) = € ${fmtEur(result.credito)}`);
+        }
       }
     }
   }
 
-  const found = Object.keys(result).filter(k => !['lm43','lm44'].includes(k)).length;
-  if (found === 0) logWarn('RPF: nessun dato trovato — assicurati che il PDF non sia scansionato come immagine.');
+  // ── RR Sezione (INPS) ─────────────────────────────────────────
+  let rrPageText = "";
+  for (const txt of pagesText) {
+    if (txt.includes("QUADRO RR") || txt.includes("RR5") || txt.includes("RR 5")) {
+      rrPageText = txt;
+      break;
+    }
+  }
+
+  if (rrPageText) {
+    const flatRR = rrPageText.replace(/\r\n|\r|\n/g,' ').replace(/[ \t]+/g,' ');
+    const rrIdx = flatRR.indexOf("RR5") !== -1 ? flatRR.indexOf("RR5") : flatRR.indexOf("RR 5");
+    if (rrIdx !== -1) {
+      const afterRR = flatRR.slice(rrIdx);
+      const numRe = /\b\d{1,3}(?:\.\d{3})*(?:,\d{2})?\b|\b\d+\b/g;
+      const rrVals = [];
+      let mrr;
+      while ((mrr = numRe.exec(afterRR)) !== null) {
+        const val = parseIT(mrr[0]);
+        if (val && val >= 100) rrVals.push(val);
+      }
+      if (rrVals.length > 0) {
+        result.inpsImponibile = rrVals[0];
+        logOk(`RR5 Imponibile INPS = € ${fmtEur(rrVals[0])}`);
+        const target = rrVals[0] * 0.2607;
+        const dov = rrVals.find(v => Math.abs(v - target) / target < 0.10);
+        if (dov) {
+          result.inpsDov = dov;
+          logOk(`RR6 INPS dovuto = € ${fmtEur(dov)}`);
+        }
+      }
+    }
+  }
+
+  const found = Object.keys(result).filter(k=>!['lm43','lm44'].includes(k)).length;
+  if (found === 0) logWarn('RPF: nessun dato trovato.');
   else logOk(`RPF: estratti ${found} campi.`);
-
   return result;
 }
 
 function parseRedditi(text) { return parseRPF(text); }
 
+
 /* ── PARSER FattureInCloud XML (SpreadsheetML) ──────────────── */
+// Dati reali (riepilogo economico.xml):
+//   Riga "Totale Annuo" (riga 1649):
+//     Col1: "Totale Annuo"  Col2: 30396 (imponibile emesse)
+//     Col3: 2482.64 (IVA, dovrebbe essere 0 in forfettario ma qui ha qualcosa)
+//     Col4: 27913.36 (imponibile netto dopo correzioni ammortamenti)
+//   Date fatture: ss:Type="DateTime" con valore "2025-01-14T00:00:00.000"
+//   IMPORTANTE: contare SOLO le sezioni "Fatture emesse", NON "Fatture ricevute"
 function parseFIC(text) {
   logInfo('FattureInCloud: estrazione dati XML SpreadsheetML...');
   const result = { fatt: 0, nFatture: 0, fattureCon: 0 };
 
-  // ── Strategia 1: Riga "Totale Annuo" SpreadsheetML ──────────
-  // Il file FIC è un SpreadsheetML (Excel-XML).
-  // La riga "Totale Annuo" contiene: col1=label, col2=imponibile emesse, col3=IVA, ...
+  // ── Fatturato: Riga "Totale Annuo" ───────────────────────────
+  // La prima cella numerica dopo "Totale Annuo" = imponibile lordo emesse
   const totAnnuoIdx = text.indexOf('Totale Annuo');
   if (totAnnuoIdx !== -1) {
     const rowStart = text.lastIndexOf('<Row', totAnnuoIdx);
     const rowEnd   = text.indexOf('</Row>', totAnnuoIdx) + 6;
-    const rowText  = text.slice(rowStart, rowEnd);
-    const numRe    = /<Data\s+ss:Type="Number">([^<]+)<\/Data>/g;
-    const vals     = [];
-    let mNum;
-    while ((mNum = numRe.exec(rowText)) !== null) {
-      const v = parseFloat(mNum[1]);
-      if (!isNaN(v) && v > 0) vals.push(v);
-    }
-    const fatturato = vals.find(v => v >= 100 && v < 500000);
-    if (fatturato) {
-      result.fatt = Math.round(fatturato * 100) / 100;
-      logOk(`Totale Annuo (SpreadsheetML) = \u20AC\u00A0${result.fatt.toLocaleString('it-IT',{minimumFractionDigits:2,maximumFractionDigits:2})}`);
+    if (rowStart !== -1 && rowEnd > rowStart) {
+      const rowText = text.slice(rowStart, rowEnd);
+      const numRe   = /<Data\s+ss:Type="Number">([^<]+)<\/Data>/g;
+      const vals    = [];
+      let mNum;
+      while ((mNum = numRe.exec(rowText)) !== null) {
+        const v = parseFloat(mNum[1]);
+        if (!isNaN(v) && v > 0) vals.push(v);
+      }
+      // Prima cella numerica >= 100 = imponibile lordo (es. 30396)
+      const fatturato = vals.find(v => v >= 100 && v < 500000);
+      if (fatturato) {
+        result.fatt = Math.round(fatturato * 100) / 100;
+        logOk(`Totale Annuo fatturato = € ${fmtEur(result.fatt)}`);
+      }
     }
   }
 
-  // ── Strategia 2: fallback — somma totali mensili emesse ─────
+  // ── Fallback: somma prima cella numerica di ogni "Totale" mensile emesse ──
   if (!result.fatt) {
-    const emesseBlocks = text.split('Fatture emesse');
+    const blocks = text.split('Fatture emesse');
     let sum = 0;
-    for (let i = 1; i < emesseBlocks.length; i++) {
-      const block  = emesseBlocks[i].split(/Fatture ricevute|Totale Annuo/)[0];
+    for (let i = 1; i < blocks.length; i++) {
+      const block  = blocks[i].split(/Fatture ricevute|Totale Annuo/)[0];
       const totIdx = block.indexOf('>Totale<');
-      if (totIdx !== -1) {
-        const rStart  = block.lastIndexOf('<Row', totIdx);
-        const rEnd    = block.indexOf('</Row>', totIdx) + 6;
-        const rowTxt  = block.slice(rStart, rEnd);
-        const numRe2  = /<Data\s+ss:Type="Number">([^<]+)<\/Data>/g;
-        let mN, first = true;
-        while ((mN = numRe2.exec(rowTxt)) !== null) {
-          const v = parseFloat(mN[1]);
-          if (first && !isNaN(v) && v > 0) { sum += v; first = false; }
-        }
+      if (totIdx === -1) continue;
+      const rStart = block.lastIndexOf('<Row', totIdx);
+      const rEnd   = block.indexOf('</Row>', totIdx) + 6;
+      if (rStart === -1 || rEnd <= rStart) continue;
+      const rowTxt = block.slice(rStart, rEnd);
+      const numRe2 = /<Data\s+ss:Type="Number">([^<]+)<\/Data>/g;
+      let mN, first = true;
+      while ((mN = numRe2.exec(rowTxt)) !== null) {
+        const v = parseFloat(mN[1]);
+        if (first && !isNaN(v) && v > 0) { sum += v; first = false; }
       }
     }
     if (sum >= 100) {
       result.fatt = Math.round(sum * 100) / 100;
-      logOk(`Fatturato da totali mensili emesse = \u20AC\u00A0${result.fatt.toLocaleString('it-IT',{minimumFractionDigits:2,maximumFractionDigits:2})}`);
+      logOk(`Fatturato da totali mensili = € ${fmtEur(result.fatt)}`);
     }
   }
 
-  // ── Conta fatture emesse ─────────────────────────────────────
-  // Il formato SpreadsheetML FIC usa ss:Type="DateTime" per le date di ogni fattura
-  // Conta solo nelle sezioni "Fatture emesse" (non "ricevute")
+  // ── Conta fatture emesse (solo sezioni "Fatture emesse") ─────
+  // Ogni riga con ss:Type="DateTime" in una sezione "Fatture emesse" = 1 fattura
+  // ESCLUDE le sezioni "Fatture ricevute"
   const emesseSections = text.split(/Fatture emesse/g);
   let nFattureEmesse = 0;
   for (let i = 1; i < emesseSections.length; i++) {
-    const block = emesseSections[i].split(/Fatture ricevute|Totale Annuo|>Totale</)[0];
+    // Tronca alla prima occorrenza di "Fatture ricevute" o "Totale Annuo"
+    const block = emesseSections[i].split(/Fatture ricevute|Totale Annuo/)[0];
+    // Conta solo le righe con DateTime (= righe di singola fattura, non Totale né header)
     nFattureEmesse += (block.match(/ss:Type="DateTime"/g) || []).length;
   }
   if (nFattureEmesse > 0) {
     result.nFatture = nFattureEmesse;
-    logOk(`Fatture emesse contate: ${nFattureEmesse}`);
+    logOk(`Fatture emesse: ${nFattureEmesse}`);
   }
 
-  // ── Conta fatture con bollo (imponibile > 77,47 per fattura) ─
-  // Nel forfettario IVA=0. Ogni Row di dati con imponibile > 77,47 = bollo
+  // ── Conta fatture con bollo (imponibile > 77,47 per fattura emessa) ──
+  // Nel forfettario IVA=0 → ogni fattura emessa con imponibile > 77,47 richiede bollo
   let conBollo = 0;
   for (let i = 1; i < emesseSections.length; i++) {
-    const block  = emesseSections[i].split(/Fatture ricevute|Totale Annuo|>Totale</)[0];
-    // Considera solo le righe con un DateTime (= riga di fattura, non header)
-    const rowRe  = /<Row>((?:(?!<Row>)[\s\S])*?ss:Type="DateTime"(?:(?!<Row>)[\s\S])*?)<\/Row>/g;
+    const block = emesseSections[i].split(/Fatture ricevute|Totale Annuo/)[0];
+    // Ogni Row con DateTime è una riga fattura
+    // Pattern Row che contiene DateTime: può essere Row semplice o Row con attributi
+    const rowRe = /<Row[^>]*>([\s\S]*?)<\/Row>/g;
     let mRow;
     while ((mRow = rowRe.exec(block)) !== null) {
-      // Trova primo Number > 0 nella riga (= imponibile)
-      const numM = mRow[1].match(/<Data\s+ss:Type="Number">([\d.]+)<\/Data>/);
-      if (numM) {
-        const imponibile = parseFloat(numM[1]);
-        if (!isNaN(imponibile) && imponibile > 77.47) conBollo++;
+      const rowContent = mRow[1];
+      // Deve contenere DateTime (= riga di fattura)
+      if (!rowContent.includes('ss:Type="DateTime"')) continue;
+      // Cerca il primo Number > 0 nella riga (= imponibile)
+      const firstNumM = rowContent.match(/<Data\s+ss:Type="Number">([\d.]+)<\/Data>/);
+      if (firstNumM) {
+        const imp = parseFloat(firstNumM[1]);
+        if (!isNaN(imp) && imp > 77.47) conBollo++;
       }
     }
   }
   if (conBollo > 0) {
     result.fattureCon = conBollo;
-    logOk(`Fatture con marca da bollo (imponibile > 77,47): ${conBollo}`);
+    logOk(`Fatture con marca da bollo (>77,47): ${conBollo}`);
   } else if (result.nFatture > 0) {
     result.fattureCon = result.nFatture;
-    logInfo(`Bolli: impossibile discriminare importo, uso totale fatture: ${result.nFatture}`);
+    logInfo(`Bolli: non discriminato, uso totale fatture emesse: ${result.nFatture}`);
   }
 
   if (result.fatt > 0) {
-    logInfo('ℹ️ FIC: estrae fatturato e n. fatture. Per INPS/acconti/credito carica i PDF della dichiarazione (RPF) e i tuoi F24.');
+    logInfo('ℹ️ FIC: estrae fatturato e n. fatture. Per INPS/acconti/credito carica i PDF RPF e F24.');
   }
-
   return result;
 }
+
 
 /* ── PROCESS FILES E MERGE ──────────────────────────────────── */
 async function processFiles(fileList, type) {
@@ -469,36 +579,30 @@ async function processFiles(fileList, type) {
       let parsed = {};
       const isPDF = file.name.toLowerCase().endsWith('.pdf');
       const isXML = /\.(xml)$/i.test(file.name);
-      const isCSV = /\.(csv)$/i.test(file.name);
 
       if (isPDF) {
         const text = await pdfToText(file);
         if      (type === 'f24')     parsed = parseF24(text);
         else if (type === 'rpf')     parsed = parseRPF(text);
         else if (type === 'redditi') parsed = parseRedditi(text);
-      } else if (isXML || isCSV) {
+      } else if (isXML) {
         const text = await file.text();
         if (type === 'fic') parsed = parseFIC(text);
       }
 
       // ── MERGE INTELLIGENTE ────────────────────────────────────
+      const ACCUMULATE = ['totaleVersato','acc0900','acc1790','acc1791','acc1792','fatt','nFatture','fattureCon'];
       for (const [key, val] of Object.entries(parsed)) {
         if (val == null || val === false) continue;
-
-        // Campi da sommare (più F24, più file FIC)
-        const ACCUMULATE = ['totaleVersato','acc0900','acc1790','acc1791','acc1792','fatt','nFatture','fattureCon'];
         if (ACCUMULATE.includes(key)) {
           if (val === 0) continue;
           extracted[key] = (extracted[key] || 0) + val;
         } else if (key === 'isRicevuta' || key === 'isGrafico') {
           extracted[key] = extracted[key] || val;
         } else {
-          // Per campi scalari (dichiarazione), non sovrascrivere se già valorizzato
-          // a meno che il nuovo valore non sia più preciso (non zero)
           if (val !== 0 || extracted[key] == null) extracted[key] = val;
         }
       }
-
     } catch(e) {
       logErr(`Errore lettura ${file.name}: ${e.message}`);
     }
@@ -508,22 +612,23 @@ async function processFiles(fileList, type) {
   prefillFields();
 }
 
+
 /* ── UI E PREFILL ──────────────────────────────────────────── */
 const PILL_DEFS = [
-  { key:'fatt',          label:'Fatturato',            src:'RPF/FIC' },
-  { key:'inpsDed',       label:'INPS deducibili',       src:'RPF/F24' },
-  { key:'accImp',        label:'Acconti imp. sost.',    src:'RPF'     },
-  { key:'credito',       label:'Credito residuo',       src:'RPF'     },
-  { key:'acc0900',       label:'Versato INPS (0900)',   src:'F24'     },
-  { key:'acc1790',       label:'Versato imp. (1790)',   src:'F24'     },
-  { key:'imposta',       label:'Imposta sost. (LM39)',  src:'RPF'     },
-  { key:'redLordo',      label:'Reddito lordo (LM34)',  src:'RPF'     },
-  { key:'inpsDov',       label:'INPS dovuto (RR6)',     src:'RPF'     },
-  { key:'nFatture',      label:'N. fatture',            src:'FIC'     },
-  { key:'fattureCon',    label:'Fatture con bollo',     src:'FIC'     },
-  { key:'coeff',         label:'Coeff. redditività',    src:'RPF', fmt: v => v+'%' },
-  { key:'aliqImposta',   label:'Aliquota imposta',      src:'RPF', fmt: v => v+'%' },
-  { key:'annoDichiarazione', label:'Anno d\'imposta',   src:'RPF', fmt: v => String(v) },
+  { key:'fatt',             label:'Fatturato',           src:'RPF/FIC' },
+  { key:'inpsDed',          label:'INPS deducibili',     src:'RPF/F24' },
+  { key:'accImp',           label:'Acconti imp. sost.',  src:'RPF'     },
+  { key:'credito',          label:'Credito residuo',     src:'RPF'     },
+  { key:'acc0900',          label:'Versato INPS (0900)', src:'F24'     },
+  { key:'acc1790',          label:'Versato imp. (1790)', src:'F24'     },
+  { key:'imposta',          label:'Imp.sost. (LM39)',    src:'RPF'     },
+  { key:'redLordo',         label:'Reddito lordo',       src:'RPF'     },
+  { key:'inpsDov',          label:'INPS dovuto (RR)',    src:'RPF'     },
+  { key:'nFatture',         label:'N. fatture emesse',   src:'FIC'     },
+  { key:'fattureCon',       label:'Fatture con bollo',   src:'FIC'     },
+  { key:'coeff',            label:'Coeff. redditività',  src:'RPF', fmt: v => v+'%' },
+  { key:'aliqImposta',      label:'Aliquota imposta',    src:'RPF', fmt: v => v+'%' },
+  { key:'annoDichiarazione',label:'Anno d\'imposta',     src:'RPF', fmt: v => String(v) },
 ];
 
 function fmtEur(v) { return '\u20AC\u00A0' + Math.abs(v).toLocaleString('it-IT',{minimumFractionDigits:2,maximumFractionDigits:2}); }
@@ -541,8 +646,7 @@ function updateExtractedPills() {
   container.innerHTML = pills.map(d => {
     const raw  = extracted[d.key];
     const disp = d.fmt ? d.fmt(raw) : fmtEur(raw);
-    return `
-    <div class="ex-pill">
+    return `<div class="ex-pill">
       <div class="ex-pill-src">${d.src}</div>
       <div class="ex-pill-lbl">${d.label}</div>
       <div class="ex-pill-val">${disp}</div>
@@ -566,104 +670,86 @@ function setField(inputId, srcId, value) {
   setSrc(srcId, true);
 }
 
-/* ── PREFILL COMPLETO ────────────────────────────────────────── */
+/* ── PREFILL COMPLETO ─────────────────────────────────────────*/
 function prefillFields() {
 
-  // ── Fatturato ─────────────────────────────────────────────────
-  if (extracted.fatt)     setField('i-fatt', 'fatt', extracted.fatt);
+  // Fatturato
+  if (extracted.fatt)       setField('i-fatt',     'fatt',     extracted.fatt);
 
-  // ── Marche da bollo ───────────────────────────────────────────
-  // Priorità: fattureCon (discriminato da IVA) > nFatture (totale)
+  // Marche da bollo (priorità: discriminato > totale)
   const nBolli = extracted.fattureCon || extracted.nFatture || null;
-  if (nBolli)             setField('i-bolli', 'bolli', nBolli);
+  if (nBolli)               setField('i-bolli',    'bolli',    nBolli);
 
-  // ── Coefficiente redditività ──────────────────────────────────
-  if (extracted.coeff) {
-    setField('i-coeff', 'coeff', extracted.coeff);
-    logOk(`Coefficiente redditività precompilato: ${extracted.coeff}%`);
-  }
+  // Coefficiente redditività
+  if (extracted.coeff)      setField('i-coeff',    'coeff',    extracted.coeff);
 
-  // ── Aliquota imposta sostitutiva ──────────────────────────────
-  if (extracted.aliqImposta) {
-    setField('i-aliq', 'aliq', extracted.aliqImposta);
-    logOk(`Aliquota imposta sostitutiva precompilata: ${extracted.aliqImposta}%`);
-  }
+  // Aliquota imposta sostitutiva
+  if (extracted.aliqImposta) setField('i-aliq',   'aliq',     extracted.aliqImposta);
 
-  // ── Mesi al F24 di giugno (calcolo automatico) ────────────────
+  // Mesi al F24 di giugno (auto)
   const elMesi = document.getElementById('i-mesi');
   if (elMesi && !elMesi.classList.contains('auto-filled')) {
     const mesiAuto = calcolaMesiAGiugno();
     elMesi.value = mesiAuto;
     elMesi.classList.add('auto-filled');
     setSrc('mesi', true);
-    logInfo(`Mesi al F24 di giugno calcolati automaticamente: ${mesiAuto}`);
+    logInfo(`Mesi al F24 di giugno (auto): ${mesiAuto}`);
   }
 
-  // ── INPS deducibili e acconti F24 ────────────────────────────
-  const hasCodici  = (extracted.acc0900 || 0) + (extracted.acc1790 || 0) + (extracted.acc1791 || 0) > 0;
+  // INPS deducibili + Acconti
+  const hasCodici   = (extracted.acc0900||0) + (extracted.acc1790||0) + (extracted.acc1791||0) > 0;
   const hasRicevuta = extracted.isRicevuta && extracted.totaleVersato > 0;
 
   if (hasCodici) {
     // F24 digitale con codici tributo — massima precisione
-    const inpsDed = extracted.acc0900 > 0
-      ? extracted.acc0900
-      : (extracted.inpsDed || null);
-    if (inpsDed) setField('i-inps-ded', 'inpsDed', inpsDed);
-
-    const accImpF24 = (extracted.acc1790 || 0) + (extracted.acc1791 || 0);
+    const inpsDed = extracted.acc0900 > 0 ? extracted.acc0900 : (extracted.inpsDed || null);
+    if (inpsDed)            setField('i-inps-ded', 'inpsDed', inpsDed);
+    const accImpF24 = (extracted.acc1790||0) + (extracted.acc1791||0);
     const accImp    = extracted.accImp || (accImpF24 > 0 ? accImpF24 : null);
-    if (accImp)     setField('i-acc-imp', 'accImp', accImp);
-
-    if (extracted.acc0900 > 0) setField('i-acc-inps', 'accInps', extracted.acc0900);
+    if (accImp)             setField('i-acc-imp',  'accImp',  accImp);
+    const accInps   = extracted.accInps > 0 ? extracted.accInps : (extracted.acc0900 > 0 ? extracted.acc0900 : null);
+    if (accInps)            setField('i-acc-inps', 'accInps', accInps);
 
   } else if (hasRicevuta || extracted.isGrafico) {
-    // F24 ricevuta/grafico — usa dati RPF se disponibili, altrimenti stima
-    if (extracted.inpsDed) setField('i-inps-ded', 'inpsDed', extracted.inpsDed);
-    if (extracted.accImp)  setField('i-acc-imp',  'accImp',  extracted.accImp);
-
-    // Stima acconti INPS dal totale F24 - acconti imposta
+    if (extracted.inpsDed)  setField('i-inps-ded', 'inpsDed', extracted.inpsDed);
+    if (extracted.accImp)   setField('i-acc-imp',  'accImp',  extracted.accImp);
     const totF24     = extracted.totaleVersato || 0;
     const accImpNota = extracted.accImp || 0;
-    const accInpsStima = Math.max(0, totF24 - accImpNota);
-    if (accInpsStima > 0 && !extracted.inpsDed) {
-      setField('i-acc-inps', 'accInps', accInpsStima);
-      logWarn(`Acconti INPS stimati da F24 totale − acconti imp.sost.: € ${fmtEur(accInpsStima)}`);
+    const stima      = Math.max(0, totF24 - accImpNota);
+    if (stima > 0 && !extracted.inpsDed) {
+      setField('i-acc-inps', 'accInps', stima);
+      logWarn(`Acconti INPS stimati: € ${fmtEur(stima)}`);
     }
-
-    // Usa anche accInps dal quadro RR se estratto
     if (extracted.accInps && !document.getElementById('i-acc-inps')?.classList.contains('auto-filled')) {
       setField('i-acc-inps', 'accInps', extracted.accInps);
     }
 
   } else {
-    // Solo RPF — dati dalla dichiarazione
-    if (extracted.inpsDed) setField('i-inps-ded', 'inpsDed', extracted.inpsDed);
-    if (extracted.accImp)  setField('i-acc-imp',  'accImp',  extracted.accImp);
-    if (extracted.accInps) setField('i-acc-inps', 'accInps', extracted.accInps);
+    // Solo RPF
+    if (extracted.inpsDed)  setField('i-inps-ded', 'inpsDed', extracted.inpsDed);
+    if (extracted.accImp)   setField('i-acc-imp',  'accImp',  extracted.accImp);
+    if (extracted.accInps)  setField('i-acc-inps', 'accInps', extracted.accInps);
   }
 
-  // ── Credito anno precedente ───────────────────────────────────
+  // Credito anno precedente
   if (extracted.credito != null) setField('i-credito', 'credito', extracted.credito);
 
-  // ── Dati anno precedente per il confronto ─────────────────────
+  // Dati anno precedente per il confronto
   if (extracted.redLordo) prevYear.redLordo = extracted.redLordo;
   if (extracted.imposta)  prevYear.imposta  = extracted.imposta;
   if (extracted.inpsDov)  prevYear.inpsDov  = extracted.inpsDov;
   if (extracted.fatt)     prevYear.fatt     = extracted.fatt;
 
-  // ── Riepilogo prefill ─────────────────────────────────────────
+  // Riepilogo
   const campiMonitorati = ['i-fatt','i-bolli','i-coeff','i-aliq','i-inps-ded','i-acc-imp','i-acc-inps','i-credito','i-mesi'];
   const filled = campiMonitorati.filter(id => document.getElementById(id)?.classList.contains('auto-filled')).length;
+  if (filled > 0) logOk(`Pre-compilati ${filled}/${campiMonitorati.length} campi. Controlla e poi premi "Calcola".`);
+  else            logWarn('Nessun campo pre-compilato — i dati non sono stati riconosciuti. Compila manualmente.');
 
-  if (filled > 0) logOk(`Pre-compilati ${filled}/${campiMonitorati.length} campi. Controlla e correggi se necessario, poi premi "Calcola".`);
-  else            logWarn('Nessun campo pre-compilato — i dati nei PDF potrebbero non essere stati riconosciuti. Compila manualmente.');
-
-  // ── Avviso campi critici mancanti ────────────────────────────
-  const critico = ['i-fatt','i-inps-ded'];
-  critico.forEach(id => {
+  // Avvisi campi critici vuoti
+  ['i-fatt','i-inps-ded'].forEach(id => {
     const el = document.getElementById(id);
-    if (el && !el.classList.contains('auto-filled') && !el.value) {
-      logWarn(`Campo "${el.placeholder || id}" non compilato automaticamente — inserisci manualmente.`);
-    }
+    if (el && !el.classList.contains('auto-filled') && !el.value)
+      logWarn(`Campo "${el.placeholder || id}" non compilato — inserisci manualmente.`);
   });
 }
