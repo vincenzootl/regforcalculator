@@ -1,0 +1,85 @@
+# regforcalculator — Descrizione piattaforma
+Aggiornato: 2026-06-14
+
+## Stack tecnico
+- HTML5 + Vanilla CSS + Vanilla JS (no framework)
+- PDF.js 2.16.105 (lettura PDF client-side)
+- Chart.js 4.4.1 (grafici confronto e accantonamento)
+- Architettura 100% client-side — zero upload, zero backend
+
+## Struttura file
+- index.html        → landing page pubblica
+- calcolatore.html  → app a step (6 step: Documenti → Parametri → Calcolo → F24 → Confronto → Accantonamento)
+- css/style.css     → stile unico (dark mode, isomorphic flat, animazioni)
+- js/parser.js      → logica di parsing PDF/XML e prefill campi
+- js/calcolo.js     → calcolo fiscale (imposta sost., INPS GS, F24 giugno/dicembre)
+- js/ui.js          → render risultati, grafici Chart.js
+
+## Campi precompilati automaticamente
+Quando l'utente carica i documenti, il sistema tenta di precompilare:
+1. i-fatt       → fatturato (da LM22 RPF o Totale Annuo FIC)
+2. i-bolli      → n. fatture con bollo (da FIC: fattureCon > nFatture)
+3. i-coeff      → coefficiente redditività (da LM23 RPF se presente)
+4. i-aliq       → aliquota imposta sostitutiva (da LM38 RPF: 5% o 15%)
+5. i-inps-ded   → INPS deducibili (da LM35 RPF o cod.0900 F24)
+6. i-acc-imp    → acconti imposta sost. (da LM45 RPF o cod.1790+1791 F24)
+7. i-acc-inps   → acconti INPS versati (da cod.0900 F24 o RR7/RR8 RPF)
+8. i-credito    → credito anno prec. (da LM43-LM44 RPF)
+9. i-mesi       → mesi al F24 di giugno (calcolato automaticamente dalla data corrente)
+
+## Documenti supportati e parser
+### F24 (type='f24', PDF)
+- Formato A: Ricevuta (regex "Importo versamento : E. X,XX") → totaleVersato
+- Formato C: F24 digitale con codici tributo 0900/1790/1791/1792 → per codice
+- Formato B: F24 grafico (numeri con spazio "1.892 06") → stima totale
+
+### RPF / Modello Redditi (type='rpf'|'redditi', PDF)
+- getLM(): helper robusto con compressione spazi e anti-falso-positivo digit-dopo
+- LM22 → fatturato dichiarato
+- LM34 → reddito lordo
+- LM35 → INPS deducibili
+- LM36 → reddito netto
+- LM38 → aliquota imposta (5 o 15%)
+- LM39 → imposta sostitutiva calcolata
+- LM43/LM44 → credito residuo
+- LM45 → acconti imposta versati
+- RR5 → imponibile INPS (algoritmo predittivo con tolleranza 5%)
+- RR7/RR8 → acconti INPS versati
+- Anno d'imposta dal testo
+- Coefficiente redditività da testo o LM23
+
+### FattureInCloud XML (type='fic', XML)
+- Strategia 1: "Totale Annuo" → importo annuo
+- Strategia 2: somma tag <importo_totale>/<totale_fattura>/<amount>
+- Conteggio fatture: tag <invoice>/<fattura>/<document> o date ISO T00:00:00
+- Discriminazione bolli: tag aliquota_iva=0 + importo > 77,47
+
+## Merge intelligente
+- Campi accumulabili (multi-F24): totaleVersato, acc0900, acc1790, acc1791, acc1792, fatt, nFatture, fattureCon
+- Campi scalari (dichiarazione): assegnati una sola volta, non sovrascritti se già valorizzati
+- Flag booleani (isRicevuta, isGrafico): OR tra file
+
+## Logica prefill (priorità)
+1. hasCodici (F24 digitale) → massima precisione per codice tributo
+2. hasRicevuta / isGrafico (F24 ricevuta/grafico) → usa RPF + stima acconti INPS
+3. Solo RPF → tutti i campi dalla dichiarazione
+
+## Calcolo fiscale (calcolo.js)
+- fattTot = fatt + nBolli × 2
+- redLordo = fattTot × coeff/100
+- redNetto = max(0, redLordo − inpsDed)
+- imposta = max(0, redNetto × aliq/100)
+- inpsDov = redLordo × inpsAliq/100
+- saldoImp = max(0, imposta − accImp − credito)
+- saldoInps = max(0, inpsDov − accInps)
+- acc1Imp = imposta × 50%, acc1Inps = inpsDov × 50%
+- F24 giugno = saldoImp + acc1Imp + saldoInps + acc1Inps
+- F24 dicembre = acc1Imp + acc1Inps
+
+## Design
+- Stile Isomorphic Flat (no shadow pesanti, no bordi doppi)
+- Badge "da documento" / "manuale" su ogni campo precompilato
+- Log real-time nell'area #extract-log con logOk/logWarn/logInfo/logErr
+- Pills estratte in #extracted-pills (griglia)
+- Tooltip modale per ogni campo (TIPS object)
+- Campi auto-filled marcati con classe CSS .auto-filled

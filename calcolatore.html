@@ -122,6 +122,7 @@
       <div class="field">
         <div class="field-label-row">
           <span class="field-label">Coefficiente redditività (%)</span>
+          <span class="field-src manual" id="src-coeff">manuale</span>
           <button class="helper-btn" onclick="openTip('coeff')">?</button>
         </div>
         <input type="number" id="i-coeff" value="78" min="1" max="100" step="0.01">
@@ -129,6 +130,7 @@
       <div class="field">
         <div class="field-label-row">
           <span class="field-label">Imposta sostitutiva (%)</span>
+          <span class="field-src manual" id="src-aliq">manuale</span>
           <button class="helper-btn" onclick="openTip('aliq')">?</button>
         </div>
         <input type="number" id="i-aliq" value="15" min="5" max="15" step="5">
@@ -181,6 +183,7 @@
       <div class="field">
         <div class="field-label-row">
           <span class="field-label">Mesi al F24 di giugno</span>
+          <span class="field-src manual" id="src-mesi">manuale</span>
           <button class="helper-btn" onclick="openTip('mesi')">?</button>
         </div>
         <input type="number" id="i-mesi" value="" placeholder="es. 6" min="1" max="12" step="1">
@@ -291,19 +294,6 @@
 </div><!-- .shell -->
 
 <!-- TOOLTIP MODAL -->
-<div class="tip-overlay" id="tip-overlay" onclick="closeTip(event)">
-  <div class="tip-box">
-    <button class="tip-close" onclick="closeTip(null)">✕</button>
-    <div class="tip-icon" id="tip-icon">💡</div>
-    <div class="tip-title" id="tip-title"></div>
-    <div class="tip-body" id="tip-body"></div>
-    <div class="tip-example" id="tip-example" style="display:none"></div>
-  </div>
-</div>
-
-<!-- PDF.js 2.x legacy con worker inline — nessun file worker separato -->
-
-<!-- Tooltip modal -->
 <div class="tip-overlay" id="tip-overlay" onclick="closeTip(event)">
   <div class="tip-box">
     <button class="tip-close" onclick="closeTip(null)">&#x2715;</button>
