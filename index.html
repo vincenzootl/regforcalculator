@@ -475,29 +475,22 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Inter','Segoe UI',sans-serif;
   </div>
 </div>
 
-<!-- PDF.js (legacy bundle con worker inline, funziona su GitHub Pages) -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<!-- PDF.js 2.x legacy con worker inline — nessun file worker separato -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script>
 'use strict';
 
 /* ── PDF.js worker ─────────────────────────────────────────── */
-// Worker PDF.js: fetch + blob URL per evitare CORS su GitHub Pages
-// Questo è l'unico metodo affidabile con PDF.js 3.x
-(async () => {
-  try {
-    const workerUrl = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-    const resp = await fetch(workerUrl);
-    const blob = await resp.blob();
-    pdfjsLib.GlobalWorkerOptions.workerSrc = URL.createObjectURL(blob);
-    console.log('PDF.js worker caricato via blob URL');
-  } catch(e) {
-    // Fallback: workerSrc diretto (funziona se stesso dominio o CORS ok)
-    pdfjsLib.GlobalWorkerOptions.workerSrc =
-      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-    console.warn('PDF.js worker fallback a URL diretto:', e.message);
-  }
-})();
+// PDF.js 2.16 — il worker viene caricato dal tag <script> sopra
+// In PDF.js 2.x, caricare il worker.min.js come script globale
+// è sufficiente: il worker viene trovato automaticamente.
+// Nessuna configurazione aggiuntiva necessaria.
+if (typeof pdfjsLib !== 'undefined') {
+  pdfjsLib.GlobalWorkerOptions.workerSrc =
+    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+}
 
 /* ── STATE ─────────────────────────────────────────────────── */
 const extracted = {};   // dati estratti dai documenti
@@ -635,6 +628,18 @@ function extractAmounts(s) {
   return matches.map(parseIT).filter(v => v !== null && v > 0);
 }
 
+// Estrae importi dal formato F24 grafico: "1.892 06" (spazio al posto della virgola)
+function extractAmountsGraf(s) {
+  const results = [...extractAmounts(s)];
+  const re = /(?<!\d)((?:\d{1,3}\.)*\d{1,3})\s+(\d{2})(?!\d)/g;
+  let m;
+  while ((m = re.exec(s)) !== null) {
+    const v = parseIT(m[1] + ',' + m[2]);
+    if (v && v > 0) results.push(v);
+  }
+  return results;
+}
+
 // Cerca il primo numero dopo un'etichetta nel testo (finestra scorrevole)
 function findLabel(text, label, windowChars) {
   const idx = text.indexOf(label);
@@ -657,72 +662,117 @@ function findRegex(text, pattern) {
 
 /* ── PARSER F24 ──────────────────────────────────────────────── */
 /*
-  I PDF F24 di Entratel hanno due formati:
-  A) Ricevuta testuale: "0900 PXX 01 2025 12 2025 1.892,06"
-  B) Modello F24 grafico: i token sono estratti in ordine sparso da PDF.js
-  Strategia: cerchiamo codice tributo nel testo, poi raccogliamo tutti
-  i numeri nel contesto, escludendo anni (4 cifre senza virgola) e mesi.
+  I PDF F24 si presentano in TRE formati distinti:
+
+  FORMATO A — Ricevuta di riepilogo (la più comune):
+    "Importo versamento : E. 2.819,06"
+    → estraiamo il totale versato
+
+  FORMATO B — Modello F24 grafico (PDF con celle del modulo):
+    Numeri nel formato "1.892 06" (spazio invece della virgola decimale)
+    perché ogni cella del modello è un token PDF separato.
+    → Il saldo finale è il numero più grande e compare per ultimo.
+    → Separare INPS da imposta sostitutiva è inaffidabile su questo formato
+      perché i totali di riga si confondono con i singoli importi.
+    → Strategia: estraiamo il SALDO FINALE totale del F24.
+      La separazione INPS/imposta la facciamo con la dichiarazione RPF (LM35/LM45).
+
+  FORMATO C — Modello F24 digitale (testo selezionabile):
+    Numeri nel formato standard "1.892,06"
+    → Possiamo estrarre per codice tributo (0900, 1790, 1791, 1792)
+
+  In tutti i casi, sommiamo i saldi finali di tutti i F24 caricati.
 */
 function parseF24(text) {
-  logInfo('F24: scansione codici tributo nel testo estratto...');
+  logInfo('F24: analisi formato PDF...');
 
-  const result = { acc0900: 0, acc1790: 0, acc1791: 0, acc1792: 0 };
+  const result = {
+    acc0900: 0,
+    acc1790: 0,
+    acc1791: 0,
+    acc1792: 0,
+    totaleVersato: 0,
+    isRicevuta: false,
+    isGrafico: false
+  };
 
-  // Normalizza il testo: sostituisce newline multipli con spazio
-  const flat = text.replace(/\s+/g, ' ');
+  const flat = text.replace(/\s+/g, ' ').trim();
 
-  // Per ogni codice tributo, cerca le occorrenze e raccoglie gli importi
+  // ── FORMATO A: Ricevuta ──────────────────────────────────────────
+  const ricevutaRe = /[Ii]mporto\s+versamento\s*:\s*[Ee]\.?\s*([\d\.]+,\d{2})/g;
+  let mRic, totRic = 0, nRic = 0;
+  while ((mRic = ricevutaRe.exec(flat)) !== null) {
+    const v = parseIT(mRic[1]);
+    if (v && v > 0 && v < 100000) { totRic += v; nRic++; logOk(`Ricevuta: € ${fmtEur(v)}`); }
+  }
+  if (nRic > 0) {
+    result.isRicevuta = true;
+    result.totaleVersato = Math.round(totRic * 100) / 100;
+    logInfo(`${nRic} ricevuta/e — totale: € ${fmtEur(result.totaleVersato)}`);
+    logInfo('Le ricevute non distinguono INPS da imposta: usa anche la dichiarazione RPF.');
+    return result;
+  }
+
+  // ── FORMATO C: F24 digitale con codici tributo standard ──────────
   const TRIBUTI = [
-    { key: 'acc0900', code: '0900' },
-    { key: 'acc1790', code: '1790' },
-    { key: 'acc1791', code: '1791' },
-    { key: 'acc1792', code: '1792' },
+    { key: 'acc0900', code: '0900', label: 'INPS GS' },
+    { key: 'acc1790', code: '1790', label: 'Imp.sost. 1°acc' },
+    { key: 'acc1791', code: '1791', label: 'Imp.sost. 2°acc' },
+    { key: 'acc1792', code: '1792', label: 'Credito' },
   ];
-
+  let trovatiCodici = false;
   for (const t of TRIBUTI) {
     let pos = 0;
     while (true) {
       const idx = flat.indexOf(t.code, pos);
       if (idx === -1) break;
-      // Finestra di 250 caratteri dopo il codice
-      const window = flat.slice(idx, idx + 250);
-      // Filtra: prende importi > 10 e < 30000, esclude anni tipo 2024/2025
-      const amounts = extractAmounts(window).filter(v => v >= 10 && v < 30000);
-      if (amounts.length) {
-        // Prendi l'importo più alto nella finestra (più probabile sia il versamento)
-        const best = Math.max(...amounts);
-        result[t.key] += best;
-        logOk(`Cod.${t.code}: trovato € ${best.toLocaleString('it-IT',{minimumFractionDigits:2})}`);
+      const window = flat.slice(idx + t.code.length, idx + t.code.length + 80);
+      // Cerca importi in formato STANDARD (con virgola): "1.234,56"
+      const stdAmounts = extractAmounts(window).filter(v => v >= 10 && v < 30000);
+      if (stdAmounts.length) {
+        result[t.key] += stdAmounts[0];
+        logOk(`Cod.${t.code} (${t.label}): € ${fmtEur(stdAmounts[0])}`);
+        trovatiCodici = true;
       }
       pos = idx + t.code.length;
     }
   }
-
-  // Cerca anche "Importo versamento" per validazione
-  const totMatch = flat.match(/[Ii]mporto\s+versamento\s*[:\s]\s*([\d\.]+,\d{2})/);
-  if (totMatch) {
-    const tot = parseIT(totMatch[1]);
-    logInfo(`F24: totale ricevuta = € ${tot?.toLocaleString('it-IT',{minimumFractionDigits:2})}`);
+  if (trovatiCodici) {
+    result.totaleVersato = result.acc0900 + result.acc1790 + result.acc1791;
+    return result;
   }
 
-  // Se non ha trovato nulla per 0900, cerca pattern RR/INPS
-  if (result.acc0900 === 0) {
-    const inpsMatch = flat.match(/0900\s+PXX[^€\d]*([\d\.]+,\d{2})/i);
-    if (inpsMatch) {
-      result.acc0900 = parseIT(inpsMatch[1]) || 0;
-      logOk(`INPS (pattern PXX): € ${result.acc0900.toLocaleString('it-IT',{minimumFractionDigits:2})}`);
-    }
+  // ── FORMATO B: F24 grafico (numeri con spazio: "1.892 06") ───────
+  // Estrae importi con il formato "NNN 00" o "N.NNN 00"
+  logInfo('F24 grafico rilevato — estraggo saldo finale...');
+  result.isGrafico = true;
+
+  // Pattern: numero (con eventuale punto migliaia) + spazio + 2 cifre decimali
+  const grafAmounts = [];
+  const grafRe = /(?<!\d)((?:\d{1,3}\.)*\d{1,3})\s+(\d{2})(?!\d)/g;
+  let mGraf;
+  while ((mGraf = grafRe.exec(flat)) !== null) {
+    const v = parseIT(mGraf[1] + ',' + mGraf[2]);
+    if (v && v > 0) grafAmounts.push(v);
   }
 
-  // Log finale
-  const totInps = result.acc0900;
-  const totImp  = result.acc1790 + result.acc1791;
-  if (totInps > 0) logOk(`Totale INPS estratto (cod.0900): € ${totInps.toLocaleString('it-IT',{minimumFractionDigits:2})}`);
-  if (totImp  > 0) logOk(`Totale Imp.Sost. estratta (1790+1791): € ${totImp.toLocaleString('it-IT',{minimumFractionDigits:2})}`);
-  if (totInps === 0 && totImp === 0) logWarn('F24: nessun importo estratto — verifica che il PDF non sia un\'immagine scansionata');
+  // Il saldo finale è il valore più grande tra tutti
+  const saldi = grafAmounts.filter(v => v >= 100 && v < 100000);
+  if (saldi.length) {
+    // Sommiamo i valori distinti > 1000 (i saldi finali dei F24)
+    const saldiSignificativi = [...new Set(saldi.filter(v => v > 1000))].sort((a,b) => b-a);
+    // In un PDF multipagina, lo stesso saldo compare 3 volte (3 copie del modello)
+    // Prendiamo i valori UNICI
+    result.totaleVersato = saldiSignificativi.length > 0 ? saldiSignificativi[0] : 0;
+    logOk(`F24 grafico: saldo finale = € ${fmtEur(result.totaleVersato)}`);
+    logInfo('F24 grafico: carica anche la dichiarazione RPF per separare INPS e imposta.');
+  } else {
+    logWarn('F24: nessun importo estratto — PDF potrebbe essere scansionato');
+  }
 
   return result;
 }
+
 
 /* ── PARSER RPF / MODELLO REDDITI ────────────────────────────── */
 /*
@@ -1037,25 +1087,51 @@ function prefillFields() {
   // 2. N. bolli — solo da FIC
   if (extracted.nFatture) setField('i-bolli', 'bolli', extracted.nFatture);
 
-  // 3. INPS deducibili:
-  //    - Se abbiamo F24: usiamo la somma dei versamenti 0900 (più accurata)
-  //    - Altrimenti: LM35 dalla dichiarazione
-  const inpsDedF24 = extracted.acc0900 > 0 ? extracted.acc0900 : null;
-  const inpsDedRPF = extracted.inpsDed || null;
-  const inpsDed = inpsDedF24 || inpsDedRPF;
-  if (inpsDed) setField('i-inps-ded', 'inpsDed', inpsDed);
+  // 3-5. INPS deducibili, acconti imposta, acconti INPS
+  //
+  // CASO A — Ricevute riepilogative (isRicevuta = true):
+  //   Abbiamo solo il totale versato, non i singoli codici.
+  //   Il totale F24 = saldo anno prec. + acconti corrente (INPS + imposta misti).
+  //   Non possiamo separare automaticamente: usiamo LM35 e LM45 dalla dichiarazione.
+  //
+  // CASO B — Modello F24 con codici tributo:
+  //   Abbiamo acc0900 (INPS) e acc1790+1791 (imposta) separati.
+  //   Massima precisione.
 
-  // 4. Acconti imposta sostitutiva:
-  //    - LM45 dalla dichiarazione (somma ufficiale degli acconti)
-  //    - Fallback: somma 1790 + 1791 dai F24
-  const accImpRPF = extracted.accImp || null;
-  const accImpF24 = (extracted.acc1790 || 0) + (extracted.acc1791 || 0);
-  const accImp = accImpRPF || (accImpF24 > 0 ? accImpF24 : null);
-  if (accImp) setField('i-acc-imp', 'accImp', accImp);
+  const hasCodici = (extracted.acc0900 || 0) + (extracted.acc1790 || 0) + (extracted.acc1791 || 0) > 0;
+  const hasRicevuta = extracted.isRicevuta && extracted.totaleVersato > 0;
 
-  // 5. Acconti INPS versati = somma cod.0900 da F24
-  const accInps = extracted.acc0900 > 0 ? extracted.acc0900 : null;
-  if (accInps) setField('i-acc-inps', 'accInps', accInps);
+  if (hasCodici) {
+    // CASO B: codici tributo distinti
+    const inpsDed = extracted.acc0900 > 0 ? extracted.acc0900 : (extracted.inpsDed || null);
+    if (inpsDed) setField('i-inps-ded', 'inpsDed', inpsDed);
+
+    const accImpF24 = (extracted.acc1790 || 0) + (extracted.acc1791 || 0);
+    const accImp = extracted.accImp || (accImpF24 > 0 ? accImpF24 : null);
+    if (accImp) setField('i-acc-imp', 'accImp', accImp);
+
+    if (extracted.acc0900 > 0) setField('i-acc-inps', 'accInps', extracted.acc0900);
+
+  } else if (hasRicevuta || extracted.isGrafico) {
+    // CASO A/B: ricevute o F24 grafico
+    // Non possiamo separare INPS da imposta → usiamo la dichiarazione RPF
+    logInfo('F24 caricato. Per i dettagli INPS/imposta, carica anche la dichiarazione RPF.');
+    if (extracted.inpsDed) setField('i-inps-ded', 'inpsDed', extracted.inpsDed);
+    if (extracted.accImp)  setField('i-acc-imp',  'accImp',  extracted.accImp);
+    // Stima acconti INPS: totale F24 meno acconti imposta nota
+    const totF24 = extracted.totaleVersato || 0;
+    const accImpNota = extracted.accImp || 0;
+    const accInpsStima = Math.max(0, totF24 - accImpNota);
+    if (accInpsStima > 0) {
+      setField('i-acc-inps', 'accInps', accInpsStima);
+      logWarn(`Acconti INPS stimati da F24 totale: € ${accInpsStima.toLocaleString('it-IT',{minimumFractionDigits:2})} — verifica con la dichiarazione`);
+    }
+
+  } else {
+    // Nessun F24: usa solo dati dichiarazione
+    if (extracted.inpsDed) setField('i-inps-ded', 'inpsDed', extracted.inpsDed);
+    if (extracted.accImp)  setField('i-acc-imp',  'accImp',  extracted.accImp);
+  }
 
   // 6. Credito residuo (LM43 - LM44)
   if (extracted.credito != null) setField('i-credito', 'credito', extracted.credito);
