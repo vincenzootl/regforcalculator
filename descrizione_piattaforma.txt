@@ -9,7 +9,7 @@ Aggiornato: 2026-06-15
 
 ## Struttura file
 - index.html        → landing page pubblica
-- calcolatore.html  → app a step (6 step: Documenti → Parametri → Calcolo → F24 → Confronto → Accantonamento)
+- calcolatore.html  → app a step (8 step: Profilo → Documenti → Parametri → Calcolo → F24 → Confronto → Accantonamento → Esporta PDF)
 - css/style.css     → stile unico (dark mode, isomorphic flat, animazioni)
 - js/parser.js      → logica di parsing PDF/XML e prefill campi
 - js/calcolo.js     → calcolo fiscale (imposta sost., INPS GS, F24 giugno/dicembre)
@@ -24,7 +24,7 @@ Quando l'utente carica i documenti, il sistema tenta di precompilare:
 5. i-inps-ded   → INPS deducibili (da LM35 RPF o totale cod.0900 F24 di tutti i periodi)
 6. i-acc-imp    → acconti imposta sost. (da LM45 RPF o cod.1790+1791 F24)
 7. i-acc-inps   → acconti INPS versati (da cod.0900 F24 per l'anno corrente o stimati da ricevute F24 e RPF)
-8. i-credito    → credito anno prec. (da LM47 RPF, o fallback RX31 o LM43 RPF)
+8. i-credito    → credito anno prec. (da RX31 o LM43/LM44 RPF)
 9. i-mesi       → mesi al F24 di giugno (calcolato automaticamente dalla data corrente)
 
 ## Documenti supportati e parser
@@ -68,13 +68,23 @@ Il file è un Excel-XML (SpreadsheetML) con namespace urn:schemas-microsoft-com:
 - redLordo = fattTot × coeff/100
 - redNetto = max(0, redLordo − inpsDed)
 - imposta = max(0, redNetto × aliq/100)
-- inpsDov = redLordo × inpsAliq/100 (overridden by RR6 extracted.inpsDov if present)
+- inpsDovCorrente = redLordo × inpsAliq/100
+- inpsDovPrec = prevYear.inpsDov (da RR) se presente, altrimenti inpsDovCorrente
 - saldoImp = max(0, imposta − accImp − credito)
-- saldoInps = max(0, inpsDov − accInps)
-- acc1Imp = floor(imposta × 40%), acc2Imp = imposta − acc1Imp
-- acc1Inps = floor(inpsDov × 50%), acc2Inps = round(inpsDov − acc1Inps)
+- saldoInps = max(0, inpsDovCorrente − accInps)  ← usa INPS anno corrente, non prec.
+- acc1Imp = floor(imposta × 50%), acc2Imp = round(imposta − acc1Imp)   [metodo storico]
+- acc1Inps = floor(inpsDovCorrente × 40%), acc2Inps = round(inpsDovCorrente − acc1Inps)  [80% totale GS]
 - F24 giugno = saldoImp + acc1Imp + saldoInps + acc1Inps
 - F24 novembre = acc2Imp + acc2Inps
+
+## Test di regressione (anno d’imposta 2025)
+Input: fatt=30396, bolli=41, coeff=78, aliq=15, inpsDed=4466.12, inpsAliq=26.07
+       accImp=622, accInps=3784.12, credito=0, prevYear.inpsDov=4730
+Output atteso:
+  fattTot=30478, redLordo=23772.84, redNetto=19306.72, imposta=2896.01
+  saldoImp(1792)=2274.01, acc1Imp(1790)≈1448, acc2Imp(1791)≈1448
+  inpsDovCorrente≈6197.66, saldoInps≈2413.54, acc1Inps≈2479.07, acc2Inps≈2479.07
+  F24 giugno≈8614.62, F24 novembre≈3927.06, Totale≈12541.68
 
 ## Design
 - Stile Isomorphic Flat (no shadow pesanti, no bordi doppi)

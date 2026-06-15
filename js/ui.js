@@ -20,7 +20,7 @@ function renderStep2(s) {
     <div class="step-row"><span class="step-lbl op">− Credito anno precedente</span><span class="step-val neg">− ${fmtEur(s.credito)}</span></div>
     <div class="step-row sub-total"><span class="step-lbl" style="font-weight:600">= Saldo imposta da versare</span><span class="step-val accent">${fmtEur(s.saldoImp)}</span></div>
     <div class="step-divider"></div>
-    <div class="step-row"><span class="step-lbl">INPS GS dovuto (${s.inpsAliq}% × reddito lordo)</span><span class="step-val">${fmtEur(s.inpsDov)}</span></div>
+    <div class="step-row"><span class="step-lbl">INPS GS dovuto (${s.inpsAliq}% × reddito lordo forfettario (anno corrente))</span><span class="step-val">${fmtEur(s.inpsDov)}</span></div>
     <div class="step-row"><span class="step-lbl op">− Acconti INPS versati</span><span class="step-val neg">− ${fmtEur(s.accInps)}</span></div>
     <div class="step-row sub-total"><span class="step-lbl" style="font-weight:600">= Saldo INPS da versare</span><span class="step-val accent">${fmtEur(s.saldoInps)}</span></div>`;
 
@@ -152,3 +152,67 @@ function renderAcc(s) {
     });
   }
 }
+
+function renderPrint(s) {
+  // Data corrente
+  const d = new Date();
+  const dateEl = document.getElementById('print-current-date');
+  if (dateEl) dateEl.textContent = 'Data: ' + d.toLocaleDateString('it-IT');
+
+  // Profilo
+  const atecoLabel = typeof onbState !== 'undefined' && onbState.ateco
+    ? (ATECO_MAP[onbState.ateco]?.label || 'Personalizzato')
+    : 'Generico';
+  const atecoEl = document.getElementById('p-ateco');
+  if (atecoEl) atecoEl.textContent = atecoLabel;
+  const aliqEl = document.getElementById('p-aliq');
+  if (aliqEl) aliqEl.textContent = s.aliq;
+  const fattEl = document.getElementById('p-fatt');
+  if (fattEl) fattEl.textContent = fmtEur(s.fatt);
+  const coeffEl = document.getElementById('p-coeff');
+  if (coeffEl) coeffEl.textContent = s.coeff;
+  const inpsDedEl = document.getElementById('p-inps-ded');
+  if (inpsDedEl) inpsDedEl.textContent = fmtEur(s.inpsDed);
+  const creditoEl = document.getElementById('p-credito');
+  if (creditoEl) creditoEl.textContent = fmtEur(s.credito);
+
+  // Riepilogo Calcolo
+  const calcFattEl = document.getElementById('p-calc-fatt');
+  if (calcFattEl) calcFattEl.textContent = fmtEur(s.fattTot);
+  const calcNettoEl = document.getElementById('p-calc-netto');
+  if (calcNettoEl) calcNettoEl.textContent = fmtEur(s.redNetto);
+  const calcImpEl = document.getElementById('p-calc-imp');
+  if (calcImpEl) calcImpEl.textContent = fmtEur(s.imposta);
+  const calcInpsEl = document.getElementById('p-calc-inps');
+  if (calcInpsEl) calcInpsEl.textContent = fmtEur(s.inpsDovCorrente);
+  const calcSaldoImpEl = document.getElementById('p-calc-saldo-imp');
+  if (calcSaldoImpEl) calcSaldoImpEl.textContent = fmtEur(s.saldoImp);
+  const calcSaldoInpsEl = document.getElementById('p-calc-saldo-inps');
+  if (calcSaldoInpsEl) calcSaldoInpsEl.textContent = fmtEur(s.saldoInps);
+
+  // F24 Giugno
+  const f1TotEl = document.getElementById('p-f1-tot');
+  if (f1TotEl) f1TotEl.textContent = fmtEur(s.f1);
+  const f1r1El = document.getElementById('p-f1-r1');
+  if (f1r1El) f1r1El.textContent = fmtEur(s.saldoImp);
+  const f1r2El = document.getElementById('p-f1-r2');
+  if (f1r2El) f1r2El.textContent = fmtEur(s.acc1Imp);
+  const f1r3El = document.getElementById('p-f1-r3');
+  if (f1r3El) f1r3El.textContent = fmtEur(s.saldoInps);
+  const f1r4El = document.getElementById('p-f1-r4');
+  if (f1r4El) f1r4El.textContent = fmtEur(s.acc1Inps);
+
+  // F24 Dicembre
+  const f2TotEl = document.getElementById('p-f2-tot');
+  if (f2TotEl) f2TotEl.textContent = fmtEur(s.f2);
+  const f2r1El = document.getElementById('p-f2-r1');
+  if (f2r1El) f2r1El.textContent = fmtEur(s.acc2Imp);
+  const f2r2El = document.getElementById('p-f2-r2');
+  if (f2r2El) f2r2El.textContent = fmtEur(s.acc2Inps);
+}
+
+function exportPDF() {
+  window.print();
+}
+window.exportPDF = exportPDF;
+window.renderPrint = renderPrint;

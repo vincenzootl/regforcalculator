@@ -24,28 +24,169 @@
 
 <!-- STEPPER -->
 <div class="stepper" role="tablist">
-  <button class="step-btn active" onclick="goStep(0)" role="tab" aria-selected="true">
-    <div class="s-num">1</div><div class="s-label">Documenti</div>
+  <button class="step-btn active" onclick="goStep(0)" role="tab">
+    <div class="s-num">1</div><div class="s-label">Profilo</div>
   </button>
   <button class="step-btn" onclick="goStep(1)" role="tab">
-    <div class="s-num">2</div><div class="s-label">Parametri</div>
+    <div class="s-num">2</div><div class="s-label">Documenti</div>
   </button>
   <button class="step-btn" onclick="goStep(2)" role="tab">
-    <div class="s-num">3</div><div class="s-label">Calcolo</div>
+    <div class="s-num">3</div><div class="s-label">Parametri</div>
   </button>
   <button class="step-btn" onclick="goStep(3)" role="tab">
-    <div class="s-num">4</div><div class="s-label">F24 2026</div>
+    <div class="s-num">4</div><div class="s-label">Calcolo</div>
   </button>
   <button class="step-btn" onclick="goStep(4)" role="tab">
-    <div class="s-num">5</div><div class="s-label">Confronto</div>
+    <div class="s-num">5</div><div class="s-label">F24</div>
   </button>
   <button class="step-btn" onclick="goStep(5)" role="tab">
-    <div class="s-num">6</div><div class="s-label">Accantonamento</div>
+    <div class="s-num">6</div><div class="s-label">Confronto</div>
+  </button>
+  <button class="step-btn" onclick="goStep(6)" role="tab">
+    <div class="s-num">7</div><div class="s-label">Accantonamento</div>
   </button>
 </div>
 
-<!-- ═══ STEP 0: CARICA DOCUMENTI ═══ -->
+<!-- ═══ STEP 0: PROFILO ═══ -->
 <div id="step-0" class="section active">
+  <div class="card">
+    <div class="card-title">Prima di tutto, parliamo di te</div>
+    <p class="onb-sub">
+      Tre domande per configurare il calcolatore correttamente.
+      Le risposte determinano l'aliquota e il coefficiente — 
+      non puoi calcolare nulla senza questi dati.
+    </p>
+
+    <!-- DOMANDA 1: Anno di attività -->
+    <div class="onb-question">
+      <div class="onb-q-label">
+        Da quanti anni sei in regime forfettario?
+        <span class="onb-q-sub">
+          I primi 5 anni hai diritto all'aliquota agevolata del 5%, 
+          dal sesto anno in poi si applica il 15%.
+        </span>
+      </div>
+      <div class="onb-options" id="onb-anni">
+        <button class="onb-opt" onclick="selectOnb('anni','1-5',this)">
+          <span class="onb-opt-icon">🌱</span>
+          <span class="onb-opt-title">1–5 anni</span>
+          <span class="onb-opt-sub">Aliquota agevolata 5%</span>
+        </button>
+        <button class="onb-opt" onclick="selectOnb('anni','6+',this)">
+          <span class="onb-opt-icon">📈</span>
+          <span class="onb-opt-title">6 anni o più</span>
+          <span class="onb-opt-sub">Aliquota ordinaria 15%</span>
+        </button>
+      </div>
+      <div class="onb-alert" id="onb-alert-anni" style="display:none"></div>
+    </div>
+
+    <!-- DOMANDA 2: Codice ATECO -->
+    <div class="onb-question">
+      <div class="onb-q-label">
+        Qual è il tuo settore di attività?
+        <span class="onb-q-sub">
+          Determina il coefficiente di redditività applicato al fatturato.
+        </span>
+      </div>
+      <div class="onb-options onb-options-ateco" id="onb-ateco">
+        <button class="onb-opt" onclick="selectOnb('ateco','78',this)">
+          <span class="onb-opt-icon">💻</span>
+          <span class="onb-opt-title">Professionisti e creativi</span>
+          <span class="onb-opt-sub">IT, design, marketing, consulenza, comunicazione — coeff. 78%</span>
+        </button>
+        <button class="onb-opt" onclick="selectOnb('ateco','86',this)">
+          <span class="onb-opt-icon">🏥</span>
+          <span class="onb-opt-title">Professioni sanitarie</span>
+          <span class="onb-opt-sub">Medici, dentisti, fisioterapisti — coeff. 78%</span>
+        </button>
+        <button class="onb-opt" onclick="selectOnb('ateco','67',this)">
+          <span class="onb-opt-icon">⚖️</span>
+          <span class="onb-opt-title">Agenti e rappresentanti</span>
+          <span class="onb-opt-sub">Intermediari commerciali — coeff. 62%</span>
+        </button>
+        <button class="onb-opt" onclick="selectOnb('ateco','40',this)">
+          <span class="onb-opt-icon">🛒</span>
+          <span class="onb-opt-title">Commercio</span>
+          <span class="onb-opt-sub">Vendita al dettaglio e ingrosso — coeff. 40%</span>
+        </button>
+        <button class="onb-opt" onclick="selectOnb('ateco','86c',this)">
+          <span class="onb-opt-icon">🔨</span>
+          <span class="onb-opt-title">Artigiani e costruzioni</span>
+          <span class="onb-opt-sub">Edilizia, installatori, riparazioni — coeff. 86%</span>
+        </button>
+        <button class="onb-opt" onclick="selectOnb('ateco','54',this)">
+          <span class="onb-opt-icon">🍽️</span>
+          <span class="onb-opt-title">Ristorazione e alloggio</span>
+          <span class="onb-opt-sub">Bar, ristoranti, B&B — coeff. 40%</span>
+        </button>
+        <button class="onb-opt onb-opt-wide" onclick="selectOnb('ateco','custom',this)">
+          <span class="onb-opt-icon">🔍</span>
+          <span class="onb-opt-title">Non sono sicuro / altro settore</span>
+          <span class="onb-opt-sub">Inserirò manualmente il coefficiente</span>
+        </button>
+      </div>
+      <!-- Input manuale coeff, visibile solo se selezionato 'custom' -->
+      <div id="onb-coeff-custom" style="display:none;margin-top:.75rem">
+        <div class="field" style="max-width:200px">
+          <div class="field-label">Coefficiente di redditività (%)</div>
+          <input type="number" id="onb-coeff-val" value="78" min="1" max="100" 
+                 placeholder="es. 78" onchange="onbCoeffChange(this.value)">
+        </div>
+        <div style="font-size:.72rem;color:var(--slate-400);margin-top:.4rem">
+          Trovi il coefficiente esatto nella tabella ATECO allegata alle 
+          istruzioni del modello Redditi PF.
+        </div>
+      </div>
+    </div>
+
+    <!-- DOMANDA 3: Gestione previdenziale -->
+    <div class="onb-question">
+      <div class="onb-q-label">
+        A quale cassa previdenziale sei iscritto?
+        <span class="onb-q-sub">
+          Cambia il modo in cui vengono calcolati i contributi.
+        </span>
+      </div>
+      <div class="onb-options" id="onb-cassa">
+        <button class="onb-opt" onclick="selectOnb('cassa','gs',this)">
+          <span class="onb-opt-icon">🏛️</span>
+          <span class="onb-opt-title">Gestione Separata INPS</span>
+          <span class="onb-opt-sub">Liberi professionisti senza altra cassa — 26,07%</span>
+        </button>
+        <button class="onb-opt" onclick="selectOnb('cassa','artig',this)">
+          <span class="onb-opt-icon">🔧</span>
+          <span class="onb-opt-title">Artigiani / Commercianti INPS</span>
+          <span class="onb-opt-sub">Gestione speciale artigiani e commercianti</span>
+        </button>
+        <button class="onb-opt" onclick="selectOnb('cassa','cassa',this)">
+          <span class="onb-opt-icon">📋</span>
+          <span class="onb-opt-title">Cassa professionale</span>
+          <span class="onb-opt-sub">Avvocati, ingegneri, architetti, dottori commercialisti ecc.</span>
+        </button>
+      </div>
+      <div class="onb-alert" id="onb-alert-cassa" style="display:none"></div>
+    </div>
+
+  </div>
+
+  <!-- Riepilogo scelte (appare quando tutte e 3 le domande sono completate) -->
+  <div class="onb-recap" id="onb-recap" style="display:none">
+    <div class="onb-recap-title">Configurazione rilevata</div>
+    <div class="onb-recap-grid" id="onb-recap-grid"></div>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn btn-primary" id="onb-next-btn" 
+            onclick="completeOnboarding()" disabled
+            style="margin-left:auto;opacity:.4;cursor:not-allowed">
+      Avanti — carica i documenti →
+    </button>
+  </div>
+</div>
+
+<!-- ═══ STEP 1: CARICA DOCUMENTI ═══ -->
+<div id="step-1" class="section">
   <div class="card">
     <div class="card-title">Carica i tuoi documenti fiscali</div>
     <p style="font-size:.82rem;color:var(--slate-500);margin-bottom:1rem;line-height:1.6">
@@ -86,12 +227,12 @@
 
   <div class="btn-row">
     <button class="btn btn-secondary" onclick="skipDocs()">Salta — inserisco manualmente</button>
-    <button class="btn btn-primary" onclick="goStep(1)" id="btn-next-docs" style="margin-left:auto">Avanti →</button>
+    <button class="btn btn-primary" onclick="goStep(2)" id="btn-next-docs" style="margin-left:auto">Avanti →</button>
   </div>
 </div>
 
-<!-- ═══ STEP 1: PARAMETRI ═══ -->
-<div id="step-1" class="section">
+<!-- ═══ STEP 2: PARAMETRI ═══ -->
+<div id="step-2" class="section">
   <div class="card">
     <div class="card-title">Dati fatturazione anno corrente</div>
     <div class="field-grid">
@@ -184,14 +325,14 @@
     </div>
 
     <div class="btn-row">
-      <button class="btn btn-secondary" onclick="goStep(0)">← Documenti</button>
+      <button class="btn btn-secondary" onclick="goStep(1)">← Documenti</button>
       <button class="btn btn-primary btn-lg" onclick="calcola()" style="margin-top:0;flex:1">Calcola →</button>
     </div>
   </div>
 </div>
 
-<!-- ═══ STEP 2: CALCOLO ═══ -->
-<div id="step-2" class="section">
+<!-- ═══ STEP 3: CALCOLO ═══ -->
+<div id="step-3" class="section">
   <div class="accent-strip">
     <strong>Perché il totale da versare supera il carico fiscale reale?</strong><br>
     Il F24 include sia i <em>saldi dell'anno corrente</em> che gli <em>acconti anticipati per l'anno prossimo</em>.
@@ -212,28 +353,28 @@
   <div class="mini-cards" id="mini-cards-calc"></div>
 
   <div class="btn-row">
-    <button class="btn btn-secondary" onclick="goStep(1)">← Parametri</button>
-    <button class="btn btn-primary" onclick="goStep(3)" style="margin-left:auto">Vedi F24 →</button>
+    <button class="btn btn-secondary" onclick="goStep(2)">← Parametri</button>
+    <button class="btn btn-primary" onclick="goStep(4)" style="margin-left:auto">Vedi F24 →</button>
   </div>
 </div>
 
-<!-- ═══ STEP 3: F24 ═══ -->
-<div id="step-3" class="section">
+<!-- ═══ STEP 4: F24 ═══ -->
+<div id="step-4" class="section">
   <div class="card-title" style="padding-left:.1rem;margin-bottom:.6rem">Da versare — anno corrente</div>
 
   <div class="f24-box">
     <div class="f24-box-hdr"><span class="f24-box-title">Scadenza 30 giugno</span><span class="f24-box-badge" id="f1-badge">—</span></div>
     <div class="f24-line"><span class="f24-cod">1792</span><span class="f24-desc">Saldo imposta sostitutiva anno prec.</span><span class="f24-amt" id="f1r1">—</span></div>
-    <div class="f24-line"><span class="f24-cod">1790</span><span class="f24-desc">1° acconto imposta sostitutiva</span><span class="f24-amt" id="f1r2">—</span></div>
+    <div class="f24-line"><span class="f24-cod">1790</span><span class="f24-desc">1° acconto imposta sostitutiva (50%)</span><span class="f24-amt" id="f1r2">—</span></div>
     <div class="f24-line"><span class="f24-cod">0900</span><span class="f24-desc">Saldo contributi INPS GS anno prec.</span><span class="f24-amt" id="f1r3">—</span></div>
-    <div class="f24-line"><span class="f24-cod">0900</span><span class="f24-desc">1° acconto contributi INPS GS</span><span class="f24-amt" id="f1r4">—</span></div>
+    <div class="f24-line"><span class="f24-cod">0900</span><span class="f24-desc">1° acconto INPS GS (40% del dovuto)</span><span class="f24-amt" id="f1r4">—</span></div>
     <div class="f24-total-row"><span>Totale F24 giugno</span><span id="f1tot">—</span></div>
   </div>
 
   <div class="f24-box">
     <div class="f24-box-hdr"><span class="f24-box-title">Scadenza 1 dicembre</span><span class="f24-box-badge" id="f2-badge">—</span></div>
-    <div class="f24-line"><span class="f24-cod">1791</span><span class="f24-desc">2° acconto imposta sostitutiva</span><span class="f24-amt" id="f2r1">—</span></div>
-    <div class="f24-line"><span class="f24-cod">0900</span><span class="f24-desc">2° acconto contributi INPS GS</span><span class="f24-amt" id="f2r2">—</span></div>
+    <div class="f24-line"><span class="f24-cod">1791</span><span class="f24-desc">2° acconto imposta sostitutiva (50%)</span><span class="f24-amt" id="f2r1">—</span></div>
+    <div class="f24-line"><span class="f24-cod">0900</span><span class="f24-desc">2° acconto INPS GS (40% del dovuto)</span><span class="f24-amt" id="f2r2">—</span></div>
     <div class="f24-total-row"><span>Totale F24 dicembre</span><span id="f2tot">—</span></div>
   </div>
 
@@ -244,26 +385,26 @@
   </div>
 
   <div class="btn-row">
-    <button class="btn btn-secondary" onclick="goStep(2)">← Calcolo</button>
-    <button class="btn btn-primary" onclick="goStep(4)" style="margin-left:auto">Confronto →</button>
+    <button class="btn btn-secondary" onclick="goStep(3)">← Calcolo</button>
+    <button class="btn btn-primary" onclick="goStep(5)" style="margin-left:auto">Confronto →</button>
   </div>
 </div>
 
-<!-- ═══ STEP 4: CONFRONTO ═══ -->
-<div id="step-4" class="section">
+<!-- ═══ STEP 5: CONFRONTO ═══ -->
+<div id="step-5" class="section">
   <div class="card">
     <div class="card-title">Anno precedente vs anno corrente</div>
     <div class="mini-cards" id="cfr-cards"><div class="mini-card"><div class="mini-val" style="font-size:.85rem;color:var(--slate-400)">Calcola prima</div></div></div>
     <div class="chart-wrap"><canvas id="chartCfr" role="img" aria-label="Confronto anni"></canvas></div>
   </div>
   <div class="btn-row">
-    <button class="btn btn-secondary" onclick="goStep(3)">← F24</button>
-    <button class="btn btn-primary" onclick="goStep(5)" style="margin-left:auto">Accantonamento →</button>
+    <button class="btn btn-secondary" onclick="goStep(4)">← F24</button>
+    <button class="btn btn-primary" onclick="goStep(6)" style="margin-left:auto">Accantonamento →</button>
   </div>
 </div>
 
-<!-- ═══ STEP 5: ACCANTONAMENTO ═══ -->
-<div id="step-5" class="section">
+<!-- ═══ STEP 6: ACCANTONAMENTO ═══ -->
+<div id="step-6" class="section">
   <div class="acc-banner">
     <div><div class="acc-label">Da accantonare ogni mese</div><div class="acc-sub">Per coprire il F24 di giugno</div></div>
     <div class="acc-val" id="acc-rate">—</div>
@@ -279,8 +420,69 @@
     <div class="soglia-labels"><span id="soglia-pct" style="color:var(--blue-600);font-weight:600">0%</span><span id="soglia-margine">—</span></div>
   </div>
   <div class="btn-row">
-    <button class="btn btn-secondary" onclick="goStep(4)">← Confronto</button>
-    <button class="btn btn-secondary" onclick="goStep(0)">Ricomincia</button>
+    <button class="btn btn-secondary" onclick="goStep(5)">← Confronto</button>
+    <button class="btn btn-primary" onclick="goStep(7)" style="margin-left:auto">Esporta PDF →</button>
+  </div>
+</div>
+
+<!-- ═══ STEP 7: ESPORTA PDF ═══ -->
+<div id="step-7" class="section">
+  <div class="card printable-area" id="print-area">
+    <div class="print-header">
+      <div class="print-logo">regforcalculator<span>.it</span></div>
+      <div class="print-date" id="print-current-date">Data: --/--/----</div>
+    </div>
+    
+    <div class="print-section">
+      <h3 class="print-section-title">Profilo &amp; Parametri</h3>
+      <div class="print-grid-2">
+        <div><strong>Settore ATECO:</strong> <span id="p-ateco">—</span></div>
+        <div><strong>Regime:</strong> Forfettario (Imposta <span id="p-aliq">—</span>%)</div>
+        <div><strong>Fatturato corrente:</strong> <span id="p-fatt">—</span></div>
+        <div><strong>Coefficiente redditività:</strong> <span id="p-coeff">—</span>%</div>
+        <div><strong>Contributi INPS deducibili:</strong> <span id="p-inps-ded">—</span></div>
+        <div><strong>Credito precedente:</strong> <span id="p-credito">—</span></div>
+      </div>
+    </div>
+
+    <div class="print-section">
+      <h3 class="print-section-title">Riepilogo Calcolo Fiscale</h3>
+      <div class="print-grid-3">
+        <div class="print-kpi"><div class="print-kpi-lbl">Fatturato Reale</div><div class="print-kpi-val" id="p-calc-fatt">—</div></div>
+        <div class="print-kpi"><div class="print-kpi-lbl">Reddito Netto</div><div class="print-kpi-val" id="p-calc-netto">—</div></div>
+        <div class="print-kpi"><div class="print-kpi-lbl">Imposta Sostitutiva</div><div class="print-kpi-val" id="p-calc-imp">—</div></div>
+        <div class="print-kpi"><div class="print-kpi-lbl">INPS GS Dovuto</div><div class="print-kpi-val" id="p-calc-inps">—</div></div>
+        <div class="print-kpi"><div class="print-kpi-lbl">Saldo Imposta</div><div class="print-kpi-val" id="p-calc-saldo-imp">—</div></div>
+        <div class="print-kpi"><div class="print-kpi-lbl">Saldo INPS</div><div class="print-kpi-val" id="p-calc-saldo-inps">—</div></div>
+      </div>
+    </div>
+
+    <div class="print-section">
+      <h3 class="print-section-title">Dettaglio F24 Scadenze 2026</h3>
+      <div class="print-f24-summary">
+        <div class="print-f24-column">
+          <div class="print-f24-title">Giugno 2026 <span class="print-f24-total" id="p-f1-tot">—</span></div>
+          <ul class="print-f24-list">
+            <li><span>Cod. 1792 Saldo Imposta</span><strong id="p-f1-r1">—</strong></li>
+            <li><span>Cod. 1790 1° Acc. Imposta</span><strong id="p-f1-r2">—</strong></li>
+            <li><span>Cod. 0900 Saldo INPS</span><strong id="p-f1-r3">—</strong></li>
+            <li><span>Cod. 0900 1° Acc. INPS</span><strong id="p-f1-r4">—</strong></li>
+          </ul>
+        </div>
+        <div class="print-f24-column">
+          <div class="print-f24-title">Dicembre 2026 <span class="print-f24-total" id="p-f2-tot">—</span></div>
+          <ul class="print-f24-list">
+            <li><span>Cod. 1791 2° Acc. Imposta</span><strong id="p-f2-r1">—</strong></li>
+            <li><span>Cod. 0900 2° Acc. INPS</span><strong id="p-f2-r2">—</strong></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="btn-row no-print">
+    <button class="btn btn-secondary" onclick="goStep(6)">← Accantonamento</button>
+    <button class="btn btn-primary" onclick="exportPDF()" style="margin-left:auto">🖨️ Stampa / Salva PDF</button>
   </div>
 </div>
 

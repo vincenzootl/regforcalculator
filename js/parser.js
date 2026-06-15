@@ -13,6 +13,149 @@ let S = {};
 let chartCfr = null, chartAcc = null;
 let prevYear = {};
 
+/* ── ONBOARDING STATE ──────────────────────────────────────────── */
+const onbState = { anni: null, ateco: null, coeff: 78, cassa: null };
+
+const ATECO_MAP = {
+  '78':     { coeff: 78,  label: 'Professionisti / creativi' },
+  '86':     { coeff: 78,  label: 'Professioni sanitarie'     },
+  '67':     { coeff: 62,  label: 'Agenti / rappresentanti'   },
+  '40':     { coeff: 40,  label: 'Commercio'                 },
+  '86c':    { coeff: 86,  label: 'Artigiani / costruzioni'   },
+  '54':     { coeff: 40,  label: 'Ristorazione / alloggio'   },
+  'custom': { coeff: 78,  label: 'Personalizzato'            },
+};
+
+const CASSA_ALERTS = {
+  artig: `Gli artigiani e commercianti INPS hanno un meccanismo contributivo 
+          diverso (minimale + eccedenza). Il calcolatore gestisce la Gestione 
+          Separata in modo più preciso — per gli artigiani i risultati sono 
+          indicativi.`,
+  cassa: `Le casse professionali (Inarcassa, Cassa Forense, ecc.) hanno aliquote 
+          e regole proprie. Il calcolatore non supporta ancora questi casi: 
+          i contributi INPS mostrati non saranno accurati.`,
+};
+
+function selectOnb(group, value, btn) {
+  // Deseleziona tutti nel gruppo
+  document.querySelectorAll(`#onb-${group} .onb-opt`)
+    .forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  onbState[group] = value;
+
+  // Gestisci input custom coefficiente
+  if (group === 'ateco') {
+    const customDiv = document.getElementById('onb-coeff-custom');
+    if (customDiv) customDiv.style.display = value === 'custom' ? 'block' : 'none';
+    if (value !== 'custom') {
+      onbState.coeff = ATECO_MAP[value]?.coeff ?? 78;
+    }
+  }
+
+  // Mostra alert per casse non supportate
+  if (group === 'cassa') {
+    const alertEl = document.getElementById('onb-alert-cassa');
+    if (alertEl) {
+      if (CASSA_ALERTS[value]) {
+        alertEl.innerHTML = '⚠️ ' + CASSA_ALERTS[value];
+        alertEl.style.display = 'block';
+      } else {
+        alertEl.style.display = 'none';
+      }
+    }
+  }
+
+  // Avviso fine quinquennio
+  if (group === 'anni') {
+    const alertEl = document.getElementById('onb-alert-anni');
+    if (alertEl) {
+      const currYear = new Date().getFullYear();
+      alertEl.innerHTML = value === '1-5'
+        ? `✓ Aliquota agevolata 5% — ricorda che scade al termine del quinto 
+           anno. Se nel ${currYear} concludi il quinquennio, dal prossimo anno 
+           passerai al 15%.`
+        : `✓ Aliquota ordinaria 15% applicata.`;
+      alertEl.style.display = 'block';
+    }
+  }
+
+  updateOnbRecap();
+  checkOnbComplete();
+}
+
+function onbCoeffChange(val) {
+  onbState.coeff = parseFloat(val) || 78;
+  updateOnbRecap();
+}
+
+function updateOnbRecap() {
+  const { anni, ateco, coeff, cassa } = onbState;
+  if (!anni && !ateco && !cassa) return;
+
+  const aliq    = anni === '1-5' ? 5 : 15;
+  const coeffVal = ateco ? (ATECO_MAP[ateco]?.coeff ?? coeff) : coeff;
+  const cassaLabel = {
+    gs:    'Gestione Separata INPS (26,07%)',
+    artig: 'Artigiani/Commercianti INPS',
+    cassa: 'Cassa professionale',
+  }[cassa] || '—';
+
+  const recap = document.getElementById('onb-recap');
+  const grid  = document.getElementById('onb-recap-grid');
+  if (recap) recap.style.display = 'block';
+
+  if (grid) {
+    grid.innerHTML = `
+      <div class="onb-recap-item">
+        <span class="onb-recap-lbl">Aliquota imposta</span>
+        <span class="onb-recap-val">${aliq}%</span>
+      </div>
+      <div class="onb-recap-item">
+        <span class="onb-recap-lbl">Coefficiente</span>
+        <span class="onb-recap-val">${coeffVal}%</span>
+      </div>
+      <div class="onb-recap-item">
+        <span class="onb-recap-lbl">Previdenza</span>
+        <span class="onb-recap-val" style="font-size:.78rem">${cassaLabel}</span>
+      </div>`;
+  }
+}
+
+function checkOnbComplete() {
+  const { anni, ateco, cassa } = onbState;
+  const btn = document.getElementById('onb-next-btn');
+  if (!btn) return;
+  const complete = anni && ateco && cassa;
+  btn.disabled = !complete;
+  btn.style.opacity = complete ? '1' : '.4';
+  btn.style.cursor  = complete ? 'pointer' : 'not-allowed';
+}
+
+function completeOnboarding() {
+  if (!onbState.anni || !onbState.ateco || !onbState.cassa) return;
+
+  // Applica i valori ai campi del calcolatore
+  const aliq  = onbState.anni === '1-5' ? 5 : 15;
+  const coeff = onbState.ateco !== 'custom'
+    ? (ATECO_MAP[onbState.ateco]?.coeff ?? 78)
+    : onbState.coeff;
+
+  const elAliq  = document.getElementById('i-aliq');
+  const elCoeff = document.getElementById('i-coeff');
+  if (elAliq)  { elAliq.value  = aliq;  elAliq.classList.add('auto-filled');  setSrc('aliq',  true); }
+  if (elCoeff) { elCoeff.value = coeff; elCoeff.classList.add('auto-filled'); setSrc('coeff', true); }
+
+  // Flag cassa per il calcolo
+  window.onbCassa = onbState.cassa;
+
+  // Avviso se cassa non supportata
+  if (onbState.cassa !== 'gs') {
+    logWarn(`Cassa previdenziale "${onbState.cassa}" — i contributi INPS mostrati sono indicativi.`);
+  }
+
+  goStep(1); // Vai allo step Documenti
+}
+
 /* ── TOOLTIP CONTENT ───────────────────────────────────────── */
 const TIPS = {
   fatt:    { icon:'🧾', title:'Fatturato da FattureInCloud', body:'Totale delle fatture emesse nell\'anno, come appare nel riepilogo di FattureInCloud. Non include le marche da bollo, che aggiungiamo separatamente.', example:'Es.: € 25.000 da FattureInCloud + € 60 di bolli (30 fatture) = € 25.060 da dichiarare' },
@@ -50,7 +193,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closeTip(nul
 
 let currentStep = 0;
 function goStep(n) {
-  if (n === 1 && Object.keys(files).length === 0) {
+  if (n === 2 && Object.keys(files).length === 0) {
     logWarn('Nessun documento caricato — dovrai inserire tutti i valori manualmente.');
   }
   document.querySelectorAll('.section').forEach((s,i) => s.classList.toggle('active', i === n));
@@ -61,7 +204,7 @@ function goStep(n) {
   currentStep = n;
   window.scrollTo({top:0, behavior:'smooth'});
 }
-function skipDocs() { goStep(1); }
+function skipDocs() { goStep(2); }
 
 function dragOver(e, el) { e.preventDefault(); el.classList.add('drag'); }
 function dragLeave(el) { el.classList.remove('drag'); }
@@ -142,7 +285,7 @@ function calcolaMesiAGiugno() {
 //              "0900 PXX 01 2024 12 2024 682 00"
 function parseF24(text) {
   logInfo('F24: analisi formato PDF...');
-  const result = { acc0900: 0, acc1790: 0, acc1791: 0, acc1792: 0, accInps: 0, totaleVersato: 0, isRicevuta: false, isGrafico: false };
+  const result = { acc0900: 0, acc1790: 0, acc1791: 0, acc1792: 0, accInps: 0, accInpsSaldoPrec: 0, totaleVersato: 0, isRicevuta: false, isGrafico: false };
   const pagesText = text.split('\n').filter(p => p.trim().length > 0);
 
   // ── Sezione Ricevute (formato piatto globale) ─────────────────
@@ -216,19 +359,29 @@ function parseF24(text) {
 
     // Accumula i valori di questa pagina unica
     for (const r of pageRecords) {
-      const resKey = `acc${r.code}`;
-      if (resKey in result) {
-        result[resKey] += r.amt;
-        logOk(`Trovato Cod.${r.code} su pag.${idx+1}: € ${fmtEur(r.amt)}`);
-        trovati = true;
-      }
-      
-      // Salva acconti INPS GS specificamente se riferiti all'anno corrente (maxYear)
       if (r.code === '0900') {
+        result.acc0900 += r.amt;
+        trovati = true;
+        logOk(`Trovato Cod.${r.code} su pag.${idx+1}: € ${fmtEur(r.amt)}`);
+
         const years = r.key.match(/\b20\d{2}\b/g) || [];
-        if (years.length > 0 && parseInt(years[years.length - 1], 10) === maxYear) {
+        const refYear = years.length > 0 ? parseInt(years[years.length - 1], 10) : 0;
+
+        if (refYear === maxYear) {
+          // Acconto anno corrente → serve per calcolare il saldo INPS da versare
           result.accInps += r.amt;
-          logInfo(`Cod.0900 su pag.${idx+1} registrato come Acconto INPS: € ${fmtEur(r.amt)}`);
+          logInfo(`Cod.0900 anno ${refYear} (acconto corrente): € ${fmtEur(r.amt)}`);
+        } else if (refYear === maxYear - 1) {
+          // Saldo anno precedente → fa parte dell'INPS deducibile ma non degli acconti
+          result.accInpsSaldoPrec = (result.accInpsSaldoPrec || 0) + r.amt;
+          logInfo(`Cod.0900 anno ${refYear} (saldo anno prec.): € ${fmtEur(r.amt)}`);
+        }
+      } else {
+        const resKey = `acc${r.code}`;
+        if (resKey in result) {
+          result[resKey] += r.amt;
+          logOk(`Trovato Cod.${r.code} su pag.${idx+1}: € ${fmtEur(r.amt)}`);
+          trovati = true;
         }
       }
     }
@@ -241,6 +394,7 @@ function parseF24(text) {
     result.acc1791 = Math.round(result.acc1791 * 100) / 100;
     result.acc1792 = Math.round(result.acc1792 * 100) / 100;
     result.accInps = Math.round(result.accInps * 100) / 100;
+    result.accInpsSaldoPrec = Math.round((result.accInpsSaldoPrec || 0) * 100) / 100;
 
     result.totaleVersato = Math.round((result.acc0900 + result.acc1790 + result.acc1791) * 100) / 100;
     logInfo(`F24 digitale: totale versato = € ${fmtEur(result.totaleVersato)}`);
@@ -646,6 +800,13 @@ async function processFiles(fileList, type) {
         for (const [key, val] of Object.entries(parsed)) {
           if (val == null || val === false) continue;
           
+          if (slotType === 'rpf' || slotType === 'redditi') {
+            if (key === 'inpsDov')  { prevYear.inpsDov  = val; continue; }
+            if (key === 'imposta')  { prevYear.imposta  = val; continue; }
+            if (key === 'redLordo') { prevYear.redLordo = val; continue; }
+            if (key === 'fatt')     { prevYear.fatt     = val; continue; }
+          }
+
           if (key === 'fatt') {
             // Se proviene da RPF/redditi (dichiarazione anno precedente), va in prevYear e NON nel fatturato corrente
             if (slotType === 'rpf' || slotType === 'redditi') {
@@ -750,13 +911,15 @@ function prefillFields() {
   if (nBolli)               setField('i-bolli',    'bolli',    nBolli);
 
   // Coefficiente redditività
-  if (extracted.coeff)      setField('i-coeff',    'coeff',    extracted.coeff);
+  const onbCoeff = document.getElementById('i-coeff')?.classList.contains('auto-filled');
+  if (!onbCoeff && extracted.coeff)      setField('i-coeff',    'coeff',    extracted.coeff);
 
   // Aliquota imposta sostitutiva
   const elWarn = document.getElementById('aliq-warning');
   if (elWarn) elWarn.style.display = 'none';
 
-  if (extracted.aliqImposta) {
+  const onbAliq  = document.getElementById('i-aliq')?.classList.contains('auto-filled');
+  if (!onbAliq && extracted.aliqImposta) {
     if (extracted.aliqImposta === 5) {
       if (elWarn) {
         elWarn.innerHTML = `Rilevata aliquota al 5% nel 2024. Sei ancora nel quinquennio agevolato? <a href="#" onclick="impostaAliquota(5); return false;">Applica aliquota al 5%</a>`;
@@ -788,15 +951,21 @@ function prefillFields() {
               'i-acc-inps value:', document.getElementById('i-acc-inps')?.value);
 
   if (hasCodici) {
-    // F24 digitale con codici tributo — massima precisione
+    // INPS deducibili = TUTTI i versamenti 0900 dell'anno solare,
+    // indipendentemente dal periodo contributivo (include saldo anno prec.)
     const inpsDed = extracted.acc0900 > 0 ? extracted.acc0900 : (extracted.inpsDed || null);
     if (inpsDed)            setField('i-inps-ded', 'inpsDed', inpsDed);
+    
+    // Acconti imposta sostitutiva = 1790 + 1791
     const accImpF24 = (extracted.acc1790||0) + (extracted.acc1791||0);
     const accImp    = extracted.accImp || (accImpF24 > 0 ? accImpF24 : null);
     if (accImp)             setField('i-acc-imp',  'accImp',  accImp);
-    const accInps = extracted.accInps > 0 
-      ? extracted.accInps 
-      : (extracted.acc0900 > 0 ? extracted.acc0900 : null);
+    
+    // Acconti INPS per calcolo saldo = solo quelli riferiti all'anno fiscale corrente
+    // (serve per calcolare: saldoInps = INPSdovuto2024 − accInps2024versati)
+    // MA per i-acc-inps usiamo accInps (anno corrente) perché serve per il saldo
+    // dell'anno precedente, non per dedurre
+    const accInps = extracted.accInps > 0 ? extracted.accInps : null;
     if (accInps)            setField('i-acc-inps', 'accInps', accInps);
 
   } else if (hasRicevuta || extracted.isGrafico) {
@@ -830,9 +999,7 @@ function prefillFields() {
   }
 
   // Credito anno precedente
-  const creditoVal = extracted.lm47 != null 
-    ? extracted.lm47 
-    : (extracted.credito != null ? extracted.credito : null);
+  const creditoVal = (extracted.credito != null) ? extracted.credito : null;
   if (creditoVal != null) setField('i-credito', 'credito', creditoVal);
 
   // Dati anno precedente per il confronto
