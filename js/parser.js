@@ -19,7 +19,12 @@ const TIPS = {
   bolli:   { icon:'📮', title:'Fatture con marca da bollo', body:'Ogni fattura emessa in esenzione IVA con importo > € 77,47 richiede una marca da bollo virtuale di € 2,00.', example:'30 fatture × € 2 = € 60 da aggiungere al fatturato dichiarato' },
   coeff:   { icon:'📐', title:'Coefficiente di redditività', body:'Nel regime forfettario non si deducono le spese reali. Il tuo codice ATECO determina una percentuale fissa del fatturato.', example:'Comunicazione/marketing (ATECO 731xxx, 741xxx): 78%. Su € 25.000 → reddito lordo € 19.500' },
   aliq:    { icon:'📊', title:'Imposta sostitutiva', body:'Sostituisce IRPEF e addizionali. È al 5% per i primi 5 anni, poi diventa 15%.', example:'Dopo 5 anni: 15% × € 15.000 di reddito netto = € 2.250 di imposta' },
-  inpsDed: { icon:'🔄', title:'Contributi INPS deducibili', body:'Si deduce dal reddito lordo l\'importo dei contributi INPS effettivamente versati nell\'anno solare.', example:'Saldo anno prec. (€ 500) + 1° acconto (€ 1.200) + 2° acconto (€ 1.200) = € 2.900 deducibili' },
+  inpsDed: {
+    icon:'🔄',
+    title:'Contributi INPS deducibili',
+    body:'Sono deducibili i contributi INPS effettivamente versati nell\'anno solare (non quelli "di competenza"). Include: il saldo anno precedente versato a giugno + il 1° e 2° acconto versati durante l\'anno. NON include il saldo dell\'anno in corso (che pagherai il prossimo giugno).',
+    example:'Esempio 2025: saldo 2024 versato a giugno 2025 (€682) + 1° acconto 2025 (€1.892) + 2° acconto 2025 (€1.892) = €4.466 deducibili. Cerca nei tuoi F24 con codice 0900.'
+  },
   inpsAliq:{ icon:'🏛️', title:'Aliquota INPS Gestione Separata', body:'L\'aliquota 2025 è 26,07% sul reddito lordo forfettario.', example:'26,07% × € 19.500 di reddito lordo = circa € 5.084 di contributi dovuti' },
   accImp:  { icon:'💳', title:'Acconti imposta sostitutiva già versati', body:'Acconti sull\'imposta sostitutiva (codice 1790 + 1791 nei tuoi F24).', example:'1° acconto € 400 + 2° acconto € 400 = € 800 versati durante l\'anno' },
   accInps: { icon:'💳', title:'Acconti INPS già versati', body:'Totale dei versamenti INPS Gestione Separata effettuati durante l\'anno.', example:'Saldo anno prec. (€ 500) + 1° acc. (€ 1.200) + 2° acc. (€ 1.200) = € 2.900' },
@@ -45,6 +50,9 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closeTip(nul
 
 let currentStep = 0;
 function goStep(n) {
+  if (n === 1 && Object.keys(files).length === 0) {
+    logWarn('Nessun documento caricato — dovrai inserire tutti i valori manualmente.');
+  }
   document.querySelectorAll('.section').forEach((s,i) => s.classList.toggle('active', i === n));
   document.querySelectorAll('.step-btn').forEach((b,i) => {
     b.classList.toggle('active', i === n);
@@ -413,6 +421,22 @@ function parseRPF(text) {
     }
   }
 
+  // Estrazione LM47 imposta a credito
+  let flatPage = "";
+  for (const txt of pagesText) {
+    if (txt.includes("LM47") || txt.includes("LM42") || txt.includes("LM46")) {
+      flatPage = txt.replace(/\s+/g,' ');
+      break;
+    }
+  }
+  if (flatPage) {
+    const lm47m = flatPage.match(/LM\s*47[^\d]*([\d.,]+)/);
+    if (lm47m) {
+      result.lm47 = parseIT(lm47m[1]);
+      logOk(`LM47 imposta a credito = € ${fmtEur(result.lm47)}`);
+    }
+  }
+
   // ── RR Sezione (INPS) ─────────────────────────────────────────
   let rrPageText = "";
   for (const txt of pagesText) {
@@ -564,6 +588,9 @@ function parseFIC(text) {
   } else if (result.nFatture > 0) {
     result.fattureCon = result.nFatture;
     logInfo(`Bolli: non discriminato, uso totale fatture emesse: ${result.nFatture}`);
+    if (result.fattureCon === result.nFatture && conBollo === 0) {
+      logWarn(`Bolli: impossibile discriminare — usato totale fatture (${result.nFatture}) come stima. Verifica manualmente.`);
+    }
   }
 
   if (result.fatt > 0) {
@@ -575,8 +602,18 @@ function parseFIC(text) {
 
 /* ── PROCESS FILES E MERGE ──────────────────────────────────── */
 async function processFiles(fileList, type) {
-  setBadge(type, fileList.map(f => f.name));
   files[type] = fileList;
+
+  // Reset visivo badge solo per lo slot corrente (gli altri mantengono il loro stato)
+  document.querySelectorAll('.upload-zone').forEach(uz => {
+    if (!uz.classList.contains('has-file')) return;
+    // già gestito da setBadge — nessuna azione necessaria
+  });
+
+  // Aggiorna i badge per tutti gli slot
+  for (const [slotType, list] of Object.entries(files)) {
+    if (list) setBadge(slotType, list.map(f => f.name));
+  }
 
   // Resetta lo stato estratto per ricalcolarlo in modo pulito da tutti i file attualmente caricati
   for (const k of Object.keys(extracted)) delete extracted[k];
@@ -752,7 +789,7 @@ function prefillFields() {
     const accImpF24 = (extracted.acc1790||0) + (extracted.acc1791||0);
     const accImp    = extracted.accImp || (accImpF24 > 0 ? accImpF24 : null);
     if (accImp)             setField('i-acc-imp',  'accImp',  accImp);
-    const accInps   = extracted.accInps > 0 ? extracted.accInps : (extracted.acc0900 > 0 ? extracted.acc0900 : null);
+    const accInps   = extracted.accInps > 0 ? extracted.accInps : null;
     if (accInps)            setField('i-acc-inps', 'accInps', accInps);
 
   } else if (hasRicevuta || extracted.isGrafico) {
@@ -786,7 +823,9 @@ function prefillFields() {
   }
 
   // Credito anno precedente
-  const creditoVal = (extracted.credito != null) ? extracted.credito : null;
+  const creditoVal = extracted.lm47 != null 
+    ? extracted.lm47 
+    : (extracted.credito != null ? extracted.credito : null);
   if (creditoVal != null) setField('i-credito', 'credito', creditoVal);
 
   // Dati anno precedente per il confronto

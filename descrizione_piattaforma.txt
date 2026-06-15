@@ -1,5 +1,5 @@
 # regforcalculator — Descrizione piattaforma
-Aggiornato: 2026-06-14
+Aggiornato: 2026-06-15
 
 ## Stack tecnico
 - HTML5 + Vanilla CSS + Vanilla JS (no framework)
@@ -24,7 +24,7 @@ Quando l'utente carica i documenti, il sistema tenta di precompilare:
 5. i-inps-ded   → INPS deducibili (da LM35 RPF o totale cod.0900 F24 di tutti i periodi)
 6. i-acc-imp    → acconti imposta sost. (da LM45 RPF o cod.1790+1791 F24)
 7. i-acc-inps   → acconti INPS versati (da cod.0900 F24 per l'anno corrente o stimati da ricevute F24 e RPF)
-8. i-credito    → credito anno prec. (da RX31 o LM43 RPF)
+8. i-credito    → credito anno prec. (da LM47 RPF, o fallback RX31 o LM43 RPF)
 9. i-mesi       → mesi al F24 di giugno (calcolato automaticamente dalla data corrente)
 
 ## Documenti supportati e parser
@@ -68,11 +68,11 @@ Il file è un Excel-XML (SpreadsheetML) con namespace urn:schemas-microsoft-com:
 - redLordo = fattTot × coeff/100
 - redNetto = max(0, redLordo − inpsDed)
 - imposta = max(0, redNetto × aliq/100)
-- inpsDov = redLordo × inpsAliq/100
+- inpsDov = fattTot × inpsAliq/100
 - saldoImp = max(0, imposta − accImp − credito)
 - saldoInps = max(0, inpsDov − accInps)
-- acc1Imp = floor(imposta × 50%), acc2Imp = imposta − acc1Imp
-- acc1Inps = floor(inpsDov × 40%), acc2Inps = round(inpsDov × 80% − acc1Inps)
+- acc1Imp = floor(imposta × 40%), acc2Imp = imposta − acc1Imp
+- acc1Inps = floor(inpsDov × 50%), acc2Inps = round(inpsDov − acc1Inps)
 - F24 giugno = saldoImp + acc1Imp + saldoInps + acc1Inps
 - F24 novembre = acc2Imp + acc2Inps
 

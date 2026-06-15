@@ -15,13 +15,13 @@ function calcola() {
   const redLordo  = fattTot * coeff / 100;
   const redNetto  = Math.max(0, redLordo - inpsDed);
   const imposta   = Math.max(0, redNetto * aliq / 100);
-  const inpsDov   = redLordo * inpsAliq / 100;
+  const inpsDov   = fattTot * inpsAliq / 100;
   const saldoImp  = Math.max(0, imposta - accImp - credito);
   const saldoInps = Math.max(0, inpsDov - accInps);
-  const acc1Imp   = Math.floor(imposta * 0.5 * 100) / 100;
+  const acc1Imp   = Math.floor(imposta * 0.4 * 100) / 100;
   const acc2Imp   = Math.round((imposta - acc1Imp) * 100) / 100;
-  const acc1Inps  = Math.floor(inpsDov * 0.4 * 100) / 100;
-  const acc2Inps  = Math.round((inpsDov * 0.8 - acc1Inps) * 100) / 100;
+  const acc1Inps  = Math.floor(inpsDov * 0.5 * 100) / 100;
+  const acc2Inps  = Math.round((inpsDov - acc1Inps) * 100) / 100;
   const f1 = saldoImp + acc1Imp + saldoInps + acc1Inps;
   const f2 = acc2Imp + acc2Inps;
 
