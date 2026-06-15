@@ -212,7 +212,15 @@ function renderPrint(s) {
 }
 
 function exportPDF() {
-  window.print();
+  // Assicurati che lo step 7 sia attivo prima di stampare
+  // (nel caso si chiami da un altro step)
+  const step7 = document.getElementById('step-7');
+  if (step7) step7.classList.add('active');
+  
+  // Piccolo delay per lasciare al browser il tempo di renderizzare
+  setTimeout(() => {
+    window.print();
+  }, 150);
 }
 window.exportPDF = exportPDF;
 window.renderPrint = renderPrint;

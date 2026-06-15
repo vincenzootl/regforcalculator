@@ -73,7 +73,7 @@ Il file è un Excel-XML (SpreadsheetML) con namespace urn:schemas-microsoft-com:
 - saldoImp = max(0, imposta − accImp − credito)
 - saldoInps = max(0, inpsDovCorrente − accInps)  ← usa INPS anno corrente, non prec.
 - acc1Imp = floor(imposta × 50%), acc2Imp = round(imposta − acc1Imp)   [metodo storico]
-- acc1Inps = floor(inpsDovCorrente × 40%), acc2Inps = round(inpsDovCorrente − acc1Inps)  [80% totale GS]
+- acc1Inps = floor(inpsDovCorrente × 40%), acc2Inps = floor(inpsDovCorrente × 40%)  [due rate uguali, totale 80% GS]
 - F24 giugno = saldoImp + acc1Imp + saldoInps + acc1Inps
 - F24 novembre = acc2Imp + acc2Inps
 
@@ -93,3 +93,8 @@ Output atteso:
 - Pills estratte in #extracted-pills (griglia)
 - Tooltip modale per ogni campo (TIPS object)
 - Campi auto-filled marcati con classe CSS .auto-filled
+
+## Esportazione PDF / Stampa (Step 7)
+- Ottimizzata via media query `@media print` in `css/style.css` per nascondere tutti gli elementi estranei (`.app-nav`, `.stepper`, `.btn-row`, etc.) e visualizzare solo `#step-7` e `#print-area`.
+- Layout di stampa allineato A4 portrait con griglia KPI a 3 colonne fisse (`.print-grid-3`) e box F24 affiancati (`.print-f24-summary`).
+- Funzione `exportPDF()` in `ui.js` che garantisce l'attivazione dello step 7 prima della stampa e applica un delay di 150ms per consentire il rendering finale.

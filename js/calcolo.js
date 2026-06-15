@@ -36,7 +36,7 @@ function calcola() {
   const acc2Imp   = Math.round((imposta - acc1Imp) * 100) / 100;
   // INPS GS: 40% per ogni rata (80% totale)
   const acc1Inps  = Math.floor(inpsDovCorrente * 0.4 * 100) / 100;
-  const acc2Inps  = Math.round((inpsDovCorrente - acc1Inps) * 100) / 100;
+  const acc2Inps  = Math.floor(inpsDovCorrente * 0.4 * 100) / 100;
 
   // ── F24 ───────────────────────────────────────────────────────
   const f1 = saldoImp + acc1Imp + saldoInps + acc1Inps;

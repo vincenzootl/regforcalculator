@@ -672,32 +672,157 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Inter','Segoe UI',sans-serif;
 }
 
 @media print {
-  body {
-    background: #fff;
-    color: #000;
-  }
-  .app-nav, .stepper, .btn-row, .no-print, nav, header {
-    display: none !important;
-  }
+  /* Nascondi tutto tranne l'area stampabile */
+  body > *:not(.shell) { display: none !important; }
+  .app-nav,
+  .stepper,
+  .btn-row,
+  .no-print,
+  #tip-overlay { display: none !important; }
+
+  /* Nascondi tutti gli step tranne il 7 */
+  .section { display: none !important; }
+  #step-7  { display: block !important; }
+
+  /* Reset shell per stampa */
   .shell {
-    padding: 0;
     max-width: 100%;
+    padding: 0;
     margin: 0;
   }
-  .section {
-    display: none !important;
-  }
-  #step-7.section {
-    display: block !important;
-  }
-  #print-area {
-    border: none !important;
+
+  /* Card stampabile a tutta pagina */
+  .printable-area {
     box-shadow: none !important;
-    padding: 0 !important;
-    background: #fff !important;
+    border: none !important;
+    border-radius: 0 !important;
+    padding: 2rem 2.5rem !important;
+    margin: 0 !important;
+    page-break-inside: avoid;
   }
-  .print-kpi, .print-f24-column {
-    background: #fff !important;
-    border: 1px solid #ccc !important;
+
+  /* Griglia KPI: 3 colonne fisse */
+  .print-grid-3 {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr 1fr !important;
+    gap: 1rem !important;
+  }
+
+  /* KPI card print */
+  .print-kpi {
+    background: #f8fafc !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 8px !important;
+    padding: .75rem 1rem !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .print-kpi-lbl {
+    font-size: 9px !important;
+    font-weight: 600 !important;
+    text-transform: uppercase !important;
+    letter-spacing: .06em !important;
+    color: #94a3b8 !important;
+    margin-bottom: .25rem !important;
+  }
+  .print-kpi-val {
+    font-size: 18px !important;
+    font-weight: 700 !important;
+    color: #0f172a !important;
+  }
+
+  /* F24 colonne affiancate */
+  .print-f24-summary {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 1.5rem !important;
+  }
+  .print-f24-column {
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 8px !important;
+    overflow: hidden !important;
+  }
+  .print-f24-title {
+    background: #f1f5f9 !important;
+    padding: .6rem 1rem !important;
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    color: #334155 !important;
+    display: flex !important;
+    justify-content: space-between !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .print-f24-total {
+    color: #2563eb !important;
+    font-weight: 700 !important;
+  }
+  .print-f24-list {
+    list-style: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  .print-f24-list li {
+    display: flex !important;
+    justify-content: space-between !important;
+    padding: .5rem 1rem !important;
+    font-size: 11px !important;
+    border-bottom: 1px solid #f1f5f9 !important;
+    color: #475569 !important;
+  }
+  .print-f24-list li:last-child { border-bottom: none !important; }
+  .print-f24-list li strong {
+    font-weight: 700 !important;
+    color: #0f172a !important;
+  }
+
+  /* Header stampa */
+  .print-header {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: baseline !important;
+    margin-bottom: 1.5rem !important;
+    padding-bottom: 1rem !important;
+    border-bottom: 2px solid #2563eb !important;
+  }
+  .print-logo {
+    font-size: 18px !important;
+    font-weight: 800 !important;
+    color: #0f172a !important;
+    letter-spacing: -.02em !important;
+  }
+  .print-logo span { color: #2563eb !important; }
+  .print-date {
+    font-size: 11px !important;
+    color: #94a3b8 !important;
+  }
+
+  /* Sezioni */
+  .print-section {
+    margin-bottom: 1.5rem !important;
+  }
+  .print-section-title {
+    font-size: 9px !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+    letter-spacing: .08em !important;
+    color: #94a3b8 !important;
+    margin-bottom: .75rem !important;
+    padding-bottom: .35rem !important;
+    border-bottom: 1px solid #e2e8f0 !important;
+  }
+  .print-grid-2 {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: .4rem .75rem !important;
+    font-size: 11px !important;
+    color: #334155 !important;
+  }
+  .print-grid-2 strong { color: #0f172a !important; }
+
+  /* Formato pagina */
+  @page {
+    size: A4 portrait;
+    margin: 15mm 15mm 15mm 15mm;
   }
 }
