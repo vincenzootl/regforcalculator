@@ -1,52 +1,93 @@
 'use strict';
 
-/* ── CALCOLO ─────────────────────────────────────────────────── */
-function gv(id) { return parseFloat(document.getElementById(id).value) || 0; }
+function gv(id) {
+  const v = parseFloat(document.getElementById(id)?.value);
+  return isNaN(v) ? 0 : v;
+}
+
+function D(v) { return new Decimal(v || 0); }
 
 function calcola() {
-  const fatt     = gv('i-fatt'),  nBolli  = gv('i-bolli');
-  const coeff    = gv('i-coeff'), aliq    = gv('i-aliq');
-  const inpsDed  = gv('i-inps-ded'), inpsAliq = gv('i-inps-aliq');
-  const accImp   = gv('i-acc-imp'), accInps  = gv('i-acc-inps');
-  const credito  = gv('i-credito'), mesi     = Math.max(1, gv('i-mesi'));
 
-  const bolliFatt = nBolli * 2;
-  const fattTot   = fatt + bolliFatt;
-  const redLordo  = fattTot * coeff / 100;
-  const redNetto  = Math.max(0, redLordo - inpsDed);
-  const imposta   = Math.max(0, redNetto * aliq / 100);
-  // ── INPS anno corrente (per acconti anno prossimo) ────────────
-  // L'imponibile INPS GS = reddito lordo forfettario
-  const inpsDovCorrente = redLordo * inpsAliq / 100;
+  // ── Input ────────────────────────────────────────────────────
+  const fatt     = D(gv('i-fatt'));
+  const nBolli   = D(gv('i-bolli'));
+  const coeff    = D(gv('i-coeff'));
+  const aliq     = D(gv('i-aliq'));
+  const inpsDed  = D(gv('i-inps-ded'));
+  const inpsAliq = D(gv('i-inps-aliq'));
+  const accImp   = D(gv('i-acc-imp'));
+  const accInps  = D(gv('i-acc-inps'));
+  const credito  = D(gv('i-credito'));
+  const mesi     = Math.max(1, gv('i-mesi'));
 
-  // ── INPS anno precedente (per calcolare il saldo da versare) ──
-  // = estratto dal quadro RR della dichiarazione caricata (prevYear.inpsDov)
-  // Se non disponibile, stima dal campo accInps: saldo = dovuto − acconti versati
-  // Ma il dovuto anno prec. non lo conosciamo senza RPF → usiamo prevYear
-  const inpsDovPrec = (typeof prevYear !== 'undefined' && prevYear && prevYear.inpsDov) ? prevYear.inpsDov : inpsDovCorrente;
+  // ── Fatturato dichiarabile ───────────────────────────────────
+  const bolliFatt = nBolli.times(REGOLE.bolloDaBollo.importo);
+  const fattTot   = fatt.plus(bolliFatt);
 
-  // ── Saldi (debiti residui anno precedente) ────────────────────
-  const saldoImp  = Math.max(0, imposta - accImp - credito);
-  // saldoInps: INPS dovuto anno corrente meno acconti già versati nell'anno
-  const saldoInps = Math.max(0, inpsDovCorrente - accInps);
+  // ── Reddito ──────────────────────────────────────────────────
+  const redLordo  = fattTot.times(coeff).dividedBy(100);
+  const redNetto  = Decimal.max(0, redLordo.minus(inpsDed));
 
-  // ── Acconti anno prossimo (calcolati sull'anno corrente) ──────
-  // Metodo storico: 50% giugno + 50% novembre
-  const acc1Imp   = Math.floor(imposta * 0.5 * 100) / 100;
-  const acc2Imp   = Math.round((imposta - acc1Imp) * 100) / 100;
-  // INPS GS: 40% per ogni rata (80% totale)
-  const acc1Inps  = Math.floor(inpsDovCorrente * 0.4 * 100) / 100;
-  const acc2Inps  = Math.floor(inpsDovCorrente * 0.4 * 100) / 100;
+  // ── Imposta sostitutiva ──────────────────────────────────────
+  const imposta   = Decimal.max(0, redNetto.times(aliq).dividedBy(100));
+  const saldoImp  = Decimal.max(0, imposta.minus(accImp).minus(credito));
 
-  // ── F24 ───────────────────────────────────────────────────────
-  const f1 = saldoImp + acc1Imp + saldoInps + acc1Inps;
-  const f2 = acc2Imp + acc2Inps;
+  // Acconti imposta: metodo storico, 50%+50% (REGOLE.imposta.acconto1/2Pct)
+  const acc1Imp   = imposta.times(REGOLE.imposta.acconto1Pct)
+                           .toDecimalPlaces(2, Decimal.ROUND_FLOOR);
+  const acc2Imp   = imposta.minus(acc1Imp)
+                           .toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
 
-  S = { fatt, nBolli, bolliFatt, fattTot, coeff, aliq,
-        inpsDed, inpsAliq, accImp, accInps, credito, mesi,
-        redLordo, inpsDovCorrente, inpsDovPrec, inpsDov: inpsDovCorrente,
-        redNetto, imposta, saldoImp, saldoInps,
-        acc1Imp, acc2Imp, acc1Inps, acc2Inps, f1, f2 };
+  // ── INPS Gestione Separata ───────────────────────────────────
+  // Imponibile = reddito lordo forfettario
+  const inpsDovCorrente = redLordo.times(inpsAliq).dividedBy(100);
+  const saldoInps       = Decimal.max(0, inpsDovCorrente.minus(accInps));
+
+  // INPS anno precedente (per visualizzazione/confronto)
+  const inpsDovPrec = (typeof prevYear !== 'undefined' && prevYear && prevYear.inpsDov)
+    ? D(prevYear.inpsDov)
+    : inpsDovCorrente;
+
+  // Acconti INPS: 40%+40% dell'INPS corrente (REGOLE.inpsGS.acconto1/2Pct)
+  const acc1Inps  = inpsDovCorrente.times(REGOLE.inpsGS.acconto1Pct)
+                                   .toDecimalPlaces(2, Decimal.ROUND_FLOOR);
+  const acc2Inps  = inpsDovCorrente.times(REGOLE.inpsGS.acconto2Pct)
+                                   .toDecimalPlaces(2, Decimal.ROUND_FLOOR);
+
+  // ── F24 ──────────────────────────────────────────────────────
+  const f1 = saldoImp.plus(acc1Imp).plus(saldoInps).plus(acc1Inps);
+  const f2 = acc2Imp.plus(acc2Inps);
+
+  // ── Converti in numeri JS per il rendering ───────────────────
+  S = {
+    fatt:             fatt.toNumber(),
+    nBolli:           nBolli.toNumber(),
+    bolliFatt:        bolliFatt.toNumber(),
+    fattTot:          fattTot.toNumber(),
+    coeff:            coeff.toNumber(),
+    aliq:             aliq.toNumber(),
+    inpsDed:          inpsDed.toNumber(),
+    inpsAliq:         inpsAliq.toNumber(),
+    accImp:           accImp.toNumber(),
+    accInps:          accInps.toNumber(),
+    credito:          credito.toNumber(),
+    mesi,
+    redLordo:         redLordo.toNumber(),
+    redNetto:         redNetto.toNumber(),
+    imposta:          imposta.toNumber(),
+    inpsDov:          inpsDovCorrente.toNumber(),
+    inpsDovCorrente:  inpsDovCorrente.toNumber(),
+    inpsDovPrec:      inpsDovPrec.toNumber(),
+    saldoImp:         saldoImp.toNumber(),
+    saldoInps:        saldoInps.toNumber(),
+    acc1Imp:          acc1Imp.toNumber(),
+    acc2Imp:          acc2Imp.toNumber(),
+    acc1Inps:         acc1Inps.toNumber(),
+    acc2Inps:         acc2Inps.toNumber(),
+    f1:               f1.toNumber(),
+    f2:               f2.toNumber(),
+  };
 
   renderStep2(S);
   renderF24(S);

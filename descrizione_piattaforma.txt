@@ -3,6 +3,7 @@ Aggiornato: 2026-06-15
 
 ## Stack tecnico
 - HTML5 + Vanilla CSS + Vanilla JS (no framework)
+- Decimal.js 10.4.3 (calcolo ad alta precisione client-side)
 - PDF.js 2.16.105 (lettura PDF client-side)
 - Chart.js 4.4.1 (grafici confronto e accantonamento)
 - Architettura 100% client-side — zero upload, zero backend
@@ -11,9 +12,11 @@ Aggiornato: 2026-06-15
 - index.html        → landing page pubblica
 - calcolatore.html  → app a step (8 step: Profilo → Documenti → Parametri → Calcolo → F24 → Confronto → Accantonamento → Esporta PDF)
 - css/style.css     → stile unico (dark mode, isomorphic flat, animazioni)
+- js/regole.js      → unica fonte di verità per costanti fiscali e percentuali
 - js/parser.js      → logica di parsing PDF/XML e prefill campi
-- js/calcolo.js     → calcolo fiscale (imposta sost., INPS GS, F24 giugno/dicembre)
+- js/calcolo.js     → calcolo fiscale ad alta precisione tramite Decimal.js
 - js/ui.js          → render risultati, grafici Chart.js
+- js/tests.js       → suite di test per la validazione automatica in console
 
 ## Campi precompilati automaticamente
 Quando l'utente carica i documenti, il sistema tenta di precompilare:
@@ -63,17 +66,19 @@ Il file è un Excel-XML (SpreadsheetML) con namespace urn:schemas-microsoft-com:
 2. hasRicevuta / isGrafico (F24 ricevuta/grafico) → usa RPF + stima acconti INPS
 3. Solo RPF → tutti i campi dalla dichiarazione
 
-## Calcolo fiscale (calcolo.js)
-- fattTot = fatt + nBolli × 2
-- redLordo = fattTot × coeff/100
+## Calcolo fiscale (calcolo.js con Decimal.js e REGOLE)
+- fattTot = fatt + nBolli × REGOLE.bolloDaBollo.importo
+- redLordo = fattTot × coeff / 100
 - redNetto = max(0, redLordo − inpsDed)
-- imposta = max(0, redNetto × aliq/100)
-- inpsDovCorrente = redLordo × inpsAliq/100
-- inpsDovPrec = prevYear.inpsDov (da RR) se presente, altrimenti inpsDovCorrente
+- imposta = max(0, redNetto × aliq / 100)
+- inpsDovCorrente = redLordo × inpsAliq / 100
+- inpsDovPrec = prevYear.inpsDov se presente, altrimenti inpsDovCorrente
 - saldoImp = max(0, imposta − accImp − credito)
-- saldoInps = max(0, inpsDovCorrente − accInps)  ← usa INPS anno corrente, non prec.
-- acc1Imp = floor(imposta × 50%), acc2Imp = round(imposta − acc1Imp)   [metodo storico]
-- acc1Inps = floor(inpsDovCorrente × 40%), acc2Inps = floor(inpsDovCorrente × 40%)  [due rate uguali, totale 80% GS]
+- saldoInps = max(0, inpsDovCorrente − accInps)
+- acc1Imp = imposta × REGOLE.imposta.acconto1Pct [floor a 2 decimali]
+- acc2Imp = imposta − acc1Imp [round a 2 decimali]
+- acc1Inps = inpsDovCorrente × REGOLE.inpsGS.acconto1Pct [floor a 2 decimali]
+- acc2Inps = inpsDovCorrente × REGOLE.inpsGS.acconto2Pct [floor a 2 decimali]
 - F24 giugno = saldoImp + acc1Imp + saldoInps + acc1Inps
 - F24 novembre = acc2Imp + acc2Inps
 
@@ -83,8 +88,8 @@ Input: fatt=30396, bolli=41, coeff=78, aliq=15, inpsDed=4466.12, inpsAliq=26.07
 Output atteso:
   fattTot=30478, redLordo=23772.84, redNetto=19306.72, imposta=2896.01
   saldoImp(1792)=2274.01, acc1Imp(1790)≈1448, acc2Imp(1791)≈1448
-  inpsDovCorrente≈6197.66, saldoInps≈2413.54, acc1Inps≈2479.07, acc2Inps≈2479.07
-  F24 giugno≈8614.62, F24 novembre≈3927.06, Totale≈12541.68
+  inpsDovCorrente≈6197.58, saldoInps≈2413.46, acc1Inps≈2479.03, acc2Inps≈2479.03
+  F24 giugno≈8614.50, F24 novembre≈3927.04, Totale≈12541.54
 
 ## Design
 - Stile Isomorphic Flat (no shadow pesanti, no bordi doppi)
