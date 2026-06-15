@@ -15,7 +15,10 @@ function calcola() {
   const redLordo  = fattTot * coeff / 100;
   const redNetto  = Math.max(0, redLordo - inpsDed);
   const imposta   = Math.max(0, redNetto * aliq / 100);
-  const inpsDov   = fattTot * inpsAliq / 100;
+  const inpsDovCalc = redLordo * inpsAliq / 100;
+  const inpsDov = (typeof extracted !== 'undefined' && extracted.inpsDov && extracted.inpsDov > 0)
+    ? extracted.inpsDov
+    : inpsDovCalc;
   const saldoImp  = Math.max(0, imposta - accImp - credito);
   const saldoInps = Math.max(0, inpsDov - accInps);
   const acc1Imp   = Math.floor(imposta * 0.4 * 100) / 100;

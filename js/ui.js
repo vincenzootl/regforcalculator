@@ -20,7 +20,7 @@ function renderStep2(s) {
     <div class="step-row"><span class="step-lbl op">− Credito anno precedente</span><span class="step-val neg">− ${fmtEur(s.credito)}</span></div>
     <div class="step-row sub-total"><span class="step-lbl" style="font-weight:600">= Saldo imposta da versare</span><span class="step-val accent">${fmtEur(s.saldoImp)}</span></div>
     <div class="step-divider"></div>
-    <div class="step-row"><span class="step-lbl">INPS GS dovuto (${s.inpsAliq}% × ricavi reali)</span><span class="step-val">${fmtEur(s.inpsDov)}</span></div>
+    <div class="step-row"><span class="step-lbl">INPS GS dovuto (${s.inpsAliq}% × reddito lordo)</span><span class="step-val">${fmtEur(s.inpsDov)}</span></div>
     <div class="step-row"><span class="step-lbl op">− Acconti INPS versati</span><span class="step-val neg">− ${fmtEur(s.accInps)}</span></div>
     <div class="step-row sub-total"><span class="step-lbl" style="font-weight:600">= Saldo INPS da versare</span><span class="step-val accent">${fmtEur(s.saldoInps)}</span></div>`;
 

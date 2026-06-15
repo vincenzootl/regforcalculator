@@ -68,7 +68,7 @@ Il file è un Excel-XML (SpreadsheetML) con namespace urn:schemas-microsoft-com:
 - redLordo = fattTot × coeff/100
 - redNetto = max(0, redLordo − inpsDed)
 - imposta = max(0, redNetto × aliq/100)
-- inpsDov = fattTot × inpsAliq/100
+- inpsDov = redLordo × inpsAliq/100 (overridden by RR6 extracted.inpsDov if present)
 - saldoImp = max(0, imposta − accImp − credito)
 - saldoInps = max(0, inpsDov − accInps)
 - acc1Imp = floor(imposta × 40%), acc2Imp = imposta − acc1Imp

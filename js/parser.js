@@ -782,6 +782,11 @@ function prefillFields() {
   const hasCodici   = (extracted.acc0900||0) + (extracted.acc1790||0) + (extracted.acc1791||0) > 0;
   const hasRicevuta = extracted.isRicevuta && extracted.totaleVersato > 0;
 
+  console.log('[DEBUG prefill] acc0900:', extracted.acc0900, 
+              'accInps:', extracted.accInps, 
+              'hasCodici:', hasCodici,
+              'i-acc-inps value:', document.getElementById('i-acc-inps')?.value);
+
   if (hasCodici) {
     // F24 digitale con codici tributo — massima precisione
     const inpsDed = extracted.acc0900 > 0 ? extracted.acc0900 : (extracted.inpsDed || null);
@@ -789,7 +794,9 @@ function prefillFields() {
     const accImpF24 = (extracted.acc1790||0) + (extracted.acc1791||0);
     const accImp    = extracted.accImp || (accImpF24 > 0 ? accImpF24 : null);
     if (accImp)             setField('i-acc-imp',  'accImp',  accImp);
-    const accInps   = extracted.accInps > 0 ? extracted.accInps : null;
+    const accInps = extracted.accInps > 0 
+      ? extracted.accInps 
+      : (extracted.acc0900 > 0 ? extracted.acc0900 : null);
     if (accInps)            setField('i-acc-inps', 'accInps', accInps);
 
   } else if (hasRicevuta || extracted.isGrafico) {
