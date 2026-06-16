@@ -86,23 +86,6 @@ Step 6 — Accantonamento → rata mensile e utilizzo soglia €85.000
 Step 7 — Esporta PDF  → stampa o salva il riepilogo in formato A4
 ```
 
----
-
-## 🚀 Utilizzo
-
-### GitHub Pages
-
-1. Carica i file nella root del repository
-2. Vai in **Settings → Pages → Source → Deploy from a branch**
-3. Seleziona il branch `main` e la cartella `/ (root)`
-4. La pagina sarà disponibile a `https://[username].github.io/[repo]/`
-
-### Uso locale
-
-Apri `index.html` o `calcolatore.html` direttamente nel browser. Non richiede server web.
-
----
-
 ## 📌 Logica di calcolo
 
 Tutte le costanti fiscali sono centralizzate in `js/regole.js`. Per aggiornare le aliquote a inizio anno, modificare solo quel file.
@@ -152,27 +135,6 @@ Esempio 2025:
 ```
 
 Questo coincide con il dato comunicato dall'INPS all'Agenzia delle Entrate per la precompilata.
-
----
-
-## 🧪 Test suite
-
-Apri la console del browser su `calcolatore.html` e digita:
-
-```js
-runTests()
-```
-
-I test verificano automaticamente 4 scenari reali:
-
-| Caso | Descrizione | Output atteso |
-|---|---|---|
-| 1 | Pavone 2025 (5%→15%, GS) — documenti reali | F24 giugno €8.614,50 / novembre €3.927,04 |
-| 2 | Primo anno di attività (no acconti precedenti) | F24 giugno €14.300 / novembre €4.300 |
-| 3 | Con credito residuo LM47 non zero | Saldo imposta ridotto correttamente |
-| 4 | Superamento soglia €85.000 | Flag corretto |
-
-Il Caso 1 è verificato su documenti fiscali reali (XML FIC + F24 + RPF + precompilata AdE 2026) e produce valori coincidenti con la stima dell'Agenzia delle Entrate.
 
 ---
 
