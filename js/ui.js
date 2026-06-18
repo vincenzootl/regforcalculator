@@ -6,6 +6,11 @@ function renderStep2(s) {
   document.getElementById('r-f2').textContent = fmtEur(s.f2);
   document.getElementById('r-tot').textContent = fmtEur(s.f1 + s.f2);
 
+  const na = s.inpsDisabilitato ? '—' : null;
+  const inpsVal  = v => na || fmtEur(v);
+  const inpsNeg  = v => na || ('− ' + fmtEur(v));
+  const inpsNote = s.inpsDisabilitato ? ' <span style="font-size:.7rem;color:var(--amber-500)">(cassa non supportata)</span>' : '';
+
   document.getElementById('steps-out').innerHTML = `
     <div class="step-row"><span class="step-lbl">Fatturato dichiarato</span><span class="step-val">${fmtEur(s.fatt)}</span></div>
     <div class="step-row"><span class="step-lbl op">+ Marche da bollo (${s.nBolli} × €2)</span><span class="step-val">${fmtEur(s.bolliFatt)}</span></div>
@@ -18,36 +23,61 @@ function renderStep2(s) {
     <div class="step-row"><span class="step-lbl op">× Imposta sostitutiva ${s.aliq}%</span><span class="step-val">${fmtEur(s.imposta)}</span></div>
     <div class="step-row"><span class="step-lbl op">− Acconti imp. sost. versati</span><span class="step-val neg">− ${fmtEur(s.accImp)}</span></div>
     <div class="step-row"><span class="step-lbl op">− Credito anno precedente</span><span class="step-val neg">− ${fmtEur(s.credito)}</span></div>
+    ${s.creditoImpResiduo > 0 ? `<div class="step-row"><span class="step-lbl" style="color:var(--green-600)">+ Credito imposta da riportare/utilizzare</span><span class="step-val" style="color:var(--green-600)">${fmtEur(s.creditoImpResiduo)}</span></div>` : ''}
     <div class="step-row sub-total"><span class="step-lbl" style="font-weight:600">= Saldo imposta da versare</span><span class="step-val accent">${fmtEur(s.saldoImp)}</span></div>
     <div class="step-divider"></div>
-    <div class="step-row"><span class="step-lbl">INPS GS dovuto (${s.inpsAliq}% × reddito lordo forfettario (anno corrente))</span><span class="step-val">${fmtEur(s.inpsDov)}</span></div>
-    <div class="step-row"><span class="step-lbl op">− Acconti INPS versati</span><span class="step-val neg">− ${fmtEur(s.accInps)}</span></div>
-    <div class="step-row sub-total"><span class="step-lbl" style="font-weight:600">= Saldo INPS da versare</span><span class="step-val accent">${fmtEur(s.saldoInps)}</span></div>`;
+    <div class="step-row"><span class="step-lbl">INPS GS dovuto (${s.inpsAliq}% × reddito lordo forfettario)${inpsNote}</span><span class="step-val">${inpsVal(s.inpsDov)}</span></div>
+    <div class="step-row"><span class="step-lbl op">− Acconti INPS versati</span><span class="step-val neg">${inpsNeg(s.accInps)}</span></div>
+    ${s.creditoInpsResiduo > 0 ? `<div class="step-row"><span class="step-lbl" style="color:var(--green-600)">+ Credito INPS da riportare/utilizzare</span><span class="step-val" style="color:var(--green-600)">${fmtEur(s.creditoInpsResiduo)}</span></div>` : ''}
+    <div class="step-row sub-total"><span class="step-lbl" style="font-weight:600">= Saldo INPS da versare</span><span class="step-val accent">${inpsVal(s.saldoInps)}</span></div>
+    <div class="step-divider"></div>
+    <div class="step-row"><span class="step-lbl" style="font-size:0.75rem; color:var(--slate-400)">Metodo acconti applicato: <strong>${s.metodoAcconti}</strong></span></div>`;
 
-  document.getElementById('mini-cards-calc').innerHTML = `
+  const mcCalc = document.getElementById('mini-cards-calc');
+  if (mcCalc) {
+    mcCalc.innerHTML = `
     <div class="mini-card"><div class="mini-lbl">Fatturato reale</div><div class="mini-val">${fmtInt(s.fattTot)}</div><div class="mini-sub">+${fmtInt(s.bolliFatt)} bolli</div></div>
     <div class="mini-card blue"><div class="mini-lbl">Reddito lordo</div><div class="mini-val">${fmtInt(s.redLordo)}</div><div class="mini-sub">${s.coeff}% fatturato</div></div>
-    <div class="mini-card amber"><div class="mini-lbl">INPS dovuto</div><div class="mini-val">${fmtInt(s.inpsDov)}</div><div class="mini-sub">${s.inpsAliq}% red. lordo</div></div>
+    <div class="mini-card amber"><div class="mini-lbl">INPS dovuto</div><div class="mini-val">${na || fmtInt(s.inpsDov)}</div><div class="mini-sub">${na || (s.inpsAliq + '% red. lordo')}</div></div>
     <div class="mini-card red"><div class="mini-lbl">Imposta sost.</div><div class="mini-val">${fmtInt(s.imposta)}</div><div class="mini-sub">Aliquota ${s.aliq}%</div></div>
     <div class="mini-card"><div class="mini-lbl">Reddito netto</div><div class="mini-val">${fmtInt(s.redNetto)}</div><div class="mini-sub">Base imposta</div></div>
-    <div class="mini-card green"><div class="mini-lbl">Carico fiscale reale</div><div class="mini-val">${fmtInt(s.imposta+s.inpsDov)}</div><div class="mini-sub">Imposta + INPS</div></div>`;
+    <div class="mini-card green"><div class="mini-lbl">Carico fiscale reale</div><div class="mini-val">${na ? fmtInt(s.imposta) : fmtInt(s.imposta+s.inpsDov)}</div><div class="mini-sub">${na ? 'Solo imposta' : 'Imposta + INPS'}</div></div>`;
+  }
 }
 
 /* ── RENDER F24 ──────────────────────────────────────────────── */
 function renderF24(s) {
-  document.getElementById('f1-badge').textContent  = fmtEur(s.f1);
-  document.getElementById('f1r1').textContent = fmtEur(s.saldoImp);
-  document.getElementById('f1r2').textContent = fmtEur(s.acc1Imp);
-  document.getElementById('f1r3').textContent = fmtEur(s.saldoInps);
-  document.getElementById('f1r4').textContent = fmtEur(s.acc1Inps);
-  document.getElementById('f1tot').textContent = fmtEur(s.f1);
-  document.getElementById('f2-badge').textContent  = fmtEur(s.f2);
-  document.getElementById('f2r1').textContent = fmtEur(s.acc2Imp);
-  document.getElementById('f2r2').textContent = fmtEur(s.acc2Inps);
-  document.getElementById('f2tot').textContent = fmtEur(s.f2);
-  document.getElementById('f24-tot').textContent   = fmtInt(s.f1 + s.f2);
-  document.getElementById('f24-saldi').textContent = fmtInt(s.saldoImp + s.saldoInps);
-  document.getElementById('f24-reale').textContent = fmtInt(s.imposta + s.inpsDov);
+  const na = s.inpsDisabilitato;
+  
+  // Anno di riferimento per codici tributo F24
+  // Se pago l'F24 quest'anno, il saldo è per l'anno scorso (anno d'imposta),
+  // e gli acconti sono per l'anno corrente (anno successivo all'anno d'imposta).
+  const annoAcconto = new Date().getFullYear();
+  const annoSaldo = annoAcconto - 1;
+
+  const setEl = (id, html) => { const el = document.getElementById(id); if (el) el.innerHTML = html; };
+  
+  setEl('f1-badge', fmtEur(s.f1));
+  setEl('f1r1-desc', `Saldo imposta sostitutiva <span class="f24-year">[${annoSaldo}]</span>`);
+  setEl('f1r1', fmtEur(s.saldoImp));
+  setEl('f1r2-desc', `1° acconto imposta sostitutiva <span class="f24-year">[${annoAcconto}]</span>`);
+  setEl('f1r2', fmtEur(s.acc1Imp));
+  setEl('f1r3-desc', `Saldo contributi INPS GS <span class="f24-year">[${annoSaldo}]</span>`);
+  setEl('f1r3', na ? '—' : fmtEur(s.saldoInps));
+  setEl('f1r4-desc', `1° acconto INPS GS <span class="f24-year">[${annoAcconto}]</span>`);
+  setEl('f1r4', na ? '—' : fmtEur(s.acc1Inps));
+  setEl('f1tot', fmtEur(s.f1));
+  
+  setEl('f2-badge', fmtEur(s.f2));
+  setEl('f2r1-desc', `2° acconto imposta sostitutiva <span class="f24-year">[${annoAcconto}]</span>`);
+  setEl('f2r1', fmtEur(s.acc2Imp));
+  setEl('f2r2-desc', `2° acconto INPS GS <span class="f24-year">[${annoAcconto}]</span>`);
+  setEl('f2r2', na ? '—' : fmtEur(s.acc2Inps));
+  setEl('f2tot', fmtEur(s.f2));
+  
+  setEl('f24-tot', fmtInt(s.f1 + s.f2));
+  setEl('f24-saldi', fmtInt(s.saldoImp + (na ? 0 : s.saldoInps)));
+  setEl('f24-reale', fmtInt(s.imposta + (na ? 0 : s.inpsDov)));
 }
 
 /* ── RENDER CONFRONTO ────────────────────────────────────────── */
@@ -110,11 +140,21 @@ function renderAcc(s) {
   const rate = s.f1 / s.mesi;
   document.getElementById('acc-rate').textContent = fmtInt(rate) + '/mese';
 
-  const pct = Math.min(100, (s.fattTot / 85000) * 100);
+  const soglia = (typeof REGOLE !== 'undefined' && REGOLE.forfettario)
+    ? REGOLE.forfettario.sogliaRicavi.toNumber() : 85000;
+  const pct = Math.min(100, (s.fattTot / soglia) * 100);
   document.getElementById('soglia-fill').style.width = pct.toFixed(1) + '%';
   document.getElementById('soglia-pct').textContent = pct.toFixed(1) + '%';
   document.getElementById('soglia-fatt').textContent = 'Fatturato: ' + fmtInt(s.fattTot);
-  document.getElementById('soglia-margine').textContent = 'Margine: ' + fmtInt(Math.max(0, 85000 - s.fattTot));
+  document.getElementById('soglia-margine').textContent = 'Margine: ' + fmtInt(Math.max(0, soglia - s.fattTot));
+  const sogliaTop = document.getElementById('soglia-top');
+  if (sogliaTop) {
+    const limitSpan = sogliaTop.querySelector('span:last-child');
+    if (limitSpan) limitSpan.textContent = 'Limite: ' + fmtInt(soglia);
+  }
+  // Avviso superamento soglia
+  const sogliaFill = document.getElementById('soglia-fill');
+  if (sogliaFill) sogliaFill.style.background = pct >= 100 ? 'var(--red-500, #EF4444)' : '';
 
   const labels = Array.from({length: s.mesi}, (_,i) => 'M'+(i+1));
   const data   = Array.from({length: s.mesi}, (_,i) => Math.round(rate*(i+1)));

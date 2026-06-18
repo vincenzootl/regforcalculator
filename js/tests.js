@@ -32,63 +32,11 @@ function runTests() {
     }
   }
 
-  // ── CASO 1a: Pavone 2025 (Metodo STORICO, prevImposta ipotetica) ───
-  // Test unitario del metodo storico: verifica che le formule siano corrette
-  // indipendentemente dal dato reale. Dati income reali (FIC+F24), prevImposta ipotetica.
-  console.group('Caso 1a — Pavone 2025 (Storico, prevImposta ipotetica)');
-  {
-    const fatt     = D(30396);
-    const nBolli   = D(41);
-    const coeff    = D(78);
-    const aliq     = D(15);
-    const inpsDed  = D(4466.12);
-    const inpsAliq = D(26.07);
-    const accImp   = D(622);
-    const accInps  = D(3784.12);
-    const credito  = D(0);
-
-    const prevImposta    = D(2500);   // ipotetica (solo per unit test)
-    const prevInpsDovReale = D('4730.15'); // reale: 4730.15 × 80% = 3784.12 = 1892.06 × 2
-
-    const bolliFatt = nBolli.times(2);
-    const fattTot   = fatt.plus(bolliFatt);
-    const redLordo  = fattTot.times(coeff).dividedBy(100);
-    const redNetto  = Decimal.max(0, redLordo.minus(inpsDed));
-    const imposta   = Decimal.max(0, redNetto.times(aliq).dividedBy(100));
-    const saldoImp  = Decimal.max(0, imposta.minus(accImp).minus(credito));
-
-    const acc1Imp   = prevImposta.times('0.50').toDecimalPlaces(2, Decimal.ROUND_FLOOR);
-    const acc2Imp   = prevImposta.minus(acc1Imp).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
-    const inpsDovC  = redLordo.times(inpsAliq).dividedBy(100);
-    const saldoInps = Decimal.max(0, inpsDovC.minus(accInps));
-
-    const totAccInps = prevInpsDovReale.times('0.80');
-    const acc1Inps  = totAccInps.times('0.50').toDecimalPlaces(2, Decimal.ROUND_FLOOR);
-    const acc2Inps  = totAccInps.minus(acc1Inps).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
-
-    const f1 = saldoImp.plus(acc1Imp).plus(saldoInps).plus(acc1Inps);
-    const f2 = acc2Imp.plus(acc2Inps);
-
-    assert('fattTot',              fattTot.toNumber(),   30478.00);
-    assert('redLordo',             redLordo.toNumber(),  23772.84);
-    assert('redNetto',             redNetto.toNumber(),  19306.72);
-    assert('imposta',              imposta.toNumber(),    2896.01);
-    assert('saldoImp',             saldoImp.toNumber(),  2274.01);
-    assert('acc1Imp (Storico ipot.)', acc1Imp.toNumber(),1250.00);
-    assert('acc2Imp (Storico ipot.)', acc2Imp.toNumber(),1250.00);
-    assert('inpsDovC',             inpsDovC.toNumber(),  6197.58, 0.05);
-    assert('saldoInps',            saldoInps.toNumber(), 2413.46, 0.05);
-    assert('acc1Inps (Storico)',   acc1Inps.toNumber(),  1892.06, 0.01);
-    assert('acc2Inps (Storico)',   acc2Inps.toNumber(),  1892.06, 0.01);
-    // f1 = 2274.01 + 1250.00 + 2413.46 + 1892.06 = 7829.53
-    assert('F24 giugno (Storico ipot.)', f1.toNumber(),  7829.53, 0.10);
-    assert('F24 nov.   (Storico ipot.)', f2.toNumber(),  3142.06, 0.10);
-  }
-  console.groupEnd();
-
-  // ── CASO 1b: Pavone 2025 → F24 2026 (Metodo PREVISIONALE) ─────
-  // Scenario REALE senza RPF26 caricato: il calcolatore usa metodo previsionale.
-  // Fonte: XML FattureInCloud 2025 + F24 RPF25 (delega giugno+dicembre 2025).
+  // ── CASO 1: Pavone 2025 → F24 2026 (dati REALI) ──────────────
+  // Scenario REALE: si dichiara l'anno 2025, si generano gli F24 del 2026.
+  // Gli acconti 2026 = 100% imposta 2025 (metodo storico = imposta corrente);
+  // il previsionale, senza stima separata, coincide. I due metodi danno lo
+  // stesso risultato → un solo caso copre entrambi.
   //
   //   Dati reali verificati:
   //   FIC 2025:  fatturato=30.396, fatture con bollo=41 (tutte > 77,47 €)
@@ -99,7 +47,7 @@ function runTests() {
   //
   //   F24 giugno 2026 atteso: 8.614,50
   //   F24 dicembre 2026 atteso: 3.927,04
-  console.group('Caso 1b — Pavone 2025 (Previsionale, REALE) → F24 2026');
+  console.group('Caso 1 — Pavone 2025 (REALE) → F24 2026 [storico = previsionale]');
   {
     const fatt     = D(30396);
     const nBolli   = D(41);
@@ -184,9 +132,12 @@ function runTests() {
         }
     }
 
+    // Credito 500 assorbe SOLO acc1 (500). acc2 (500) resta dovuto.
+    // imposta 1000 → acconti 500+500; credito 500 azzera acc1, acc2 invariato.
     assert('Saldo azzerato', saldoImp.toNumber(), 0);
+    assert('Credito residuo (imposta < acconti)', creditoImp.toNumber(), 0); // tutto usato su acc1
     assert('Acc1 assorbito da credito', acc1Imp.toNumber(), 0);
-    assert('Acc2 non dovuto / assorbito', acc2Imp.toNumber(), 0);
+    assert('Acc2 resta dovuto (credito esaurito)', acc2Imp.toNumber(), 500);
   }
   console.groupEnd();
 
