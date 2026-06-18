@@ -68,10 +68,6 @@ function selectOnb(group, value, btn) {
         alertEl.innerHTML = CASSA_ALERTS[value];
         alertEl.style.display = 'block';
         alertEl.classList.add('blocking');
-      } else if (CASSA_ALERTS[value]) {
-        alertEl.innerHTML = '⚠️ ' + CASSA_ALERTS[value];
-        alertEl.style.display = 'block';
-        alertEl.classList.remove('blocking');
       } else {
         alertEl.style.display = 'none';
         alertEl.classList.remove('blocking');
@@ -193,7 +189,7 @@ function applyOnboardingToFields() {
   // Disabilita campi INPS se cassa non supportata
   const cassaInfo = REGOLE.cassaPrevidenziale[onbState.cassa];
   const inpsDisabled = cassaInfo && !cassaInfo.supportato;
-  const inpsFields = ['i-inps-ded', 'i-inps-aliq', 'i-acc-inps'];
+  const inpsFields = ['i-inps-aliq', 'i-acc-inps']; // Manteniamo i-inps-ded ABILITATO perché i contributi sono deducibili per tutte le casse
   inpsFields.forEach(id => {
     const el = document.getElementById(id);
     if (el) {
@@ -229,9 +225,9 @@ const TIPS = {
   aliq:    { icon:'📊', title:'Imposta sostitutiva', body:'Sostituisce IRPEF e addizionali. È al 5% per i primi 5 anni, poi diventa 15%.', example:'Dopo 5 anni: 15% × € 15.000 di reddito netto = € 2.250 di imposta' },
   inpsDed: {
     icon:'🔄',
-    title:'Contributi INPS deducibili',
-    body:'Sono deducibili i contributi INPS effettivamente versati nell\'anno solare (non quelli "di competenza"). Include: il saldo anno precedente versato a giugno + il 1° e 2° acconto versati durante l\'anno. NON include il saldo dell\'anno in corso (che pagherai il prossimo giugno).',
-    example:'Esempio 2025: saldo 2024 versato a giugno 2025 (€682) + 1° acconto 2025 (€1.892) + 2° acconto 2025 (€1.892) = €4.466 deducibili. Cerca nei tuoi F24 con codice 0900.'
+    title:'Contributi previdenziali deducibili',
+    body:'Sono deducibili i contributi effettivamente versati nell\'anno solare alla tua cassa di appartenenza (Gestione Separata, Artigiani, Inarcassa, ecc.). Include il saldo dell\'anno precedente e gli acconti versati durante l\'anno.',
+    example:'Esempio 2025: saldo 2024 versato a giugno 2025 (€682) + acconti 2025 = €4.466 deducibili.'
   },
   inpsAliq:{ icon:'🏛️', title:'Aliquota INPS Gestione Separata', body:'L\'aliquota è 26,07% sul reddito lordo forfettario (Circolare INPS 27/2025). Aggiornare se la circolare dell\'anno corrente modifica la percentuale.', example:'26,07% × € 19.500 di reddito lordo = circa € 5.084 di contributi dovuti' },
   accImp:  { icon:'💳', title:'Acconti imposta sostitutiva già versati', body:'Acconti sull\'imposta sostitutiva (codice 1790 + 1791 nei tuoi F24).', example:'1° acconto € 400 + 2° acconto € 400 = € 800 versati durante l\'anno' },
@@ -272,6 +268,14 @@ function goStep(n) {
   // Se si sta uscendo dallo step 0 (profilo), applica le impostazioni ai campi
   if (currentStep === 0 && n !== 0) {
     applyOnboardingToFields();
+  }
+  // Se si torna allo step 0, nascondi l'alert cassa (permette ri-selezione pulita)
+  if (n === 0) {
+    const cassaAlert = document.getElementById('onb-alert-cassa');
+    if (cassaAlert && !onbState.cassa) {
+      cassaAlert.style.display = 'none';
+      cassaAlert.classList.remove('blocking');
+    }
   }
   if (n === 2 && Object.keys(files).length === 0) {
     logWarn('Nessun documento caricato — dovrai inserire tutti i valori manualmente.');
@@ -1151,6 +1155,17 @@ async function processFiles(fileList, type) {
     }
   }
 
+  // Sottrazione del credito già compensato nell'anno corrente tramite F24 (cod. 1792)
+  if (extracted.credito != null) {
+    const compensato = extracted.acc1792 || 0;
+    const creditoLordo = extracted.credito;
+    const netto = Math.max(0, creditoLordo - compensato);
+    if (compensato > 0 && creditoLordo > 0) {
+      logInfo(`Credito netto: € ${fmtEur(creditoLordo)} (da RPF) − € ${fmtEur(compensato)} (compensato in F24, cod. 1792) = € ${fmtEur(netto)}`);
+    }
+    extracted.credito = netto;
+  }
+
   updateExtractedPills();
   prefillFields();
 }
@@ -1252,21 +1267,13 @@ function prefillFields() {
   const onbCoeff = document.getElementById('i-coeff')?.classList.contains('auto-filled');
   if (!onbCoeff && extracted.coeff)      setField('i-coeff',    'coeff',    extracted.coeff);
 
-  // Aliquota imposta sostitutiva
+  // Aliquota imposta sostitutiva — MAI auto-compilata da documenti.
+  // I documenti (RPF) sono dell'anno precedente e possono avere aliquota diversa.
+  // L'aliquota viene SOLO dallo Step 0 (onboarding). Mostra solo info nel riepilogo.
   const elWarn = document.getElementById('aliq-warning');
   if (elWarn) elWarn.style.display = 'none';
-
-  const onbAliq  = document.getElementById('i-aliq')?.classList.contains('auto-filled');
-  if (!onbAliq && extracted.aliqImposta) {
-    if (extracted.aliqImposta === 5) {
-      if (elWarn) {
-        elWarn.innerHTML = `Rilevata aliquota al 5% nel 2024. Sei ancora nel quinquennio agevolato? <a href="#" onclick="impostaAliquota(5); return false;">Applica aliquota al 5%</a>`;
-        elWarn.style.display = 'block';
-      }
-      logInfo(`Aliquota al 5% rilevata nella dichiarazione precedente. Per prudenza il calcolatore mantiene il 15% (scadenza quinquennio). Se hai ancora diritto all'aliquota agevolata, clicca sul link sotto il campo.`);
-    } else {
-      setField('i-aliq', 'aliq', extracted.aliqImposta);
-    }
+  if (extracted.aliqImposta) {
+    logInfo(`Aliquota ${extracted.aliqImposta}% rilevata nella dichiarazione anno precedente — non applicata. Usa l'aliquota selezionata nel profilo (Step 0).`);
   }
 
   // Mesi al F24 di giugno (auto)

@@ -1,5 +1,5 @@
 # regforcalculator — Descrizione piattaforma
-Aggiornato: 2026-06-15
+Aggiornato: 2026-06-18
 
 ## Stack tecnico
 - HTML5 + Vanilla CSS + Vanilla JS (no framework)
@@ -12,54 +12,105 @@ Aggiornato: 2026-06-15
 - index.html        → landing page pubblica
 - calcolatore.html  → app a step (8 step: Profilo → Documenti → Parametri → Calcolo → F24 → Confronto → Accantonamento → Esporta PDF)
 - css/style.css     → stile unico (dark mode, isomorphic flat, animazioni)
-- js/regole.js      → unica fonte di verità per costanti fiscali e percentuali
-- js/parser.js      → logica di parsing PDF/XML e prefill campi
-- js/calcolo.js     → calcolo fiscale ad alta precisione tramite Decimal.js
-- js/ui.js          → render risultati, grafici Chart.js
-- js/tests.js       → suite di test per la validazione automatica in console
+- js/regole.js      → unica fonte di verità per costanti fiscali, percentuali, casse previdenziali, coefficienti legali
+- js/parser.js      → logica di parsing PDF/XML, onboarding, prefill campi, dedup file, reset stato
+- js/calcolo.js     → calcolo fiscale ad alta precisione tramite Decimal.js (INPS condizionato per cassa)
+- js/ui.js          → render risultati, grafici Chart.js (INPS condizionato)
+- js/tests.js       → suite di test per la validazione manuale in console (10 casi, 43+ assert — esegui runTests() nella console del browser)
+
+## Cassa previdenziale
+- Questo calcolatore gestisce SOLO la Gestione Separata INPS (gs).
+- Per Artigiani/Commercianti (artig) e Casse professionali (cassa):
+  - Il calcolo INPS dovuto/acconti viene disabilitato (0 in tutti i campi INPS risultati).
+  - Le righe INPS nel rendering mostrano '—'.
+  - I campi input i-inps-aliq e i-acc-inps sono disabilitati con placeholder "N/A".
+  - ATTENZIONE: Il campo i-inps-ded (Contributi prev. deducibili) rimane ABILITATO, perché i contributi versati alla propria cassa sono sempre deducibili per il calcolo dell'imposta sostitutiva.
+  - L'imposta sostitutiva viene calcolata normalmente.
+  - L'onboarding mostra un banner rosso bloccante (classe .blocking).
+- Il flag `window.onbCassa` viene letto da calcolo.js per decidere se calcolare INPS.
+- I flag di supporto sono in REGOLE.cassaPrevidenziale (regole.js).
+
+## Onboarding (Step 1 — Profilo)
+- Tre domande: anni forfettario, settore ATECO, cassa previdenziale.
+- I valori vengono scritti nei campi i-aliq e i-coeff tramite applyOnboardingToFields().
+- Questa funzione viene chiamata sia da completeOnboarding() che da goStep() 
+  ogni volta che si esce dallo step 0, garantendo la sincronizzazione anche 
+  se l'utente naviga con lo stepper.
+- Coefficiente custom: validato in [1, 100]. Fuori range o non numerico: campo rosso, 
+  messaggio errore, bottone Avanti disabilitato.
+- Aliquota 5%: il banner specifica i requisiti startup (art. 1 c.65 L.190/2014).
 
 ## Campi precompilati automaticamente
 Quando l'utente carica i documenti, il sistema tenta di precompilare:
-1. i-fatt       → fatturato corrente (da Totale Annuo FIC)
+1. i-fatt       → fatturato corrente (da Totale Annuo FIC, SOLO se anno corrente)
 2. i-bolli      → n. fatture con bollo (da FIC: fattureCon > nFatture)
-3. i-coeff      → coefficiente redditività (da LM/ATECO RPF)
-4. i-aliq       → aliquota imposta sostitutiva (se 15% precompila, se 5% mantiene il 15% di default per prevenire errori di fine quinquennio e mostra un warning cliccabile per applicare il 5%)
+3. i-coeff      → coefficiente redditività (da LM/ATECO RPF, validato contro REGOLE.coefficientiLegali)
+4. i-aliq       → aliquota imposta sostitutiva (se 15% precompila, se 5% mantiene il 15% per prudenza e mostra warning cliccabile)
 5. i-inps-ded   → INPS deducibili (da LM35 RPF o totale cod.0900 F24 di tutti i periodi)
 6. i-acc-imp    → acconti imposta sost. (da LM45 RPF o cod.1790+1791 F24)
 7. i-acc-inps   → acconti INPS versati (da cod.0900 F24 per l'anno corrente o stimati da ricevute F24 e RPF)
-8. i-credito    → credito anno prec. (da RX31 o LM43/LM44 RPF)
+8. i-credito    → credito residuo netto, calcolato sottraendo dal credito generato (LM47, RX31 o LM43/LM44) l'importo già compensato nell'F24 corrente (cod. 1792)
 9. i-mesi       → mesi al F24 di giugno (calcolato automaticamente dalla data corrente)
 
 ## Documenti supportati e parser
+
 ### F24 (type='f24', PDF)
 - Ricevuta: regex "Importo versamento : E. X,XX" → totaleVersato
-- F24 digitale con codici tributo: scansione di ogni pagina separatamente con deduplicazione basata sulla firma dei record di pagamento estratti. Questo previene il conteggio multiplo dovuto alle tre copie (banca/contribuente/destinatario) presenti nel PDF.
-- Distinzione INPS: i tributi 0900 vengono suddivisi in INPS deducibili (somma di tutti i pagamenti effettuati nell'anno) e Acconti INPS versati (solo i pagamenti riferiti all'anno fiscale corrente).
+- F24 digitale con codici tributo: scansione di ogni pagina separatamente con deduplicazione 
+  basata sulla firma dei record di pagamento estratti. Questo previene il conteggio multiplo 
+  dovuto alle tre copie (banca/contribuente/destinatario) presenti nel PDF.
+  NOTA: la dedup per firma-pagina NON collassa acconti reali di pari importo su pagine distinte.
+  Le 3 copie identiche (stesso contenuto) vengono identificate e ignorate, ma rate effettivamente 
+  diverse (contenuto diverso) vengono correttamente accumulate.
+- Distinzione INPS: i tributi 0900 vengono suddivisi in INPS deducibili (somma di tutti i 
+  pagamenti effettuati nell'anno) e Acconti INPS versati (solo i pagamenti riferiti all'anno 
+  fiscale corrente).
 
 ### RPF / Modello Redditi (type='rpf'|'redditi', PDF)
 - Scansione per pagine:
   - Anno d'imposta estratto dal testo globale.
-  - Pagina 5 (LM Sezione III): Individuazione dei codici ATECO a 6 cifre e scansione posizionale dei totali di fine quadro (lordo LM34, INPS deducibili LM35, netto LM36, imposta LM39) che seguono l'ultimo codice ATECO.
-  - Coefficiente di redditività: estratto dal valore di 2 cifre che segue immediatamente i codici ATECO.
-  - Aliquota imposta: calcolata direttamente dal rapporto matematico tra imposta LM39 e reddito netto LM36 (5% o 15%).
-  - Credito residuo: estratto da quadro RX31 (pag.16) o fallback LM43/LM44 (pag.6).
-  - Quadro RR: imponibile, INPS dovuto e saldo INPS estratti tramite l'ordinamento decrescente dei valori (Imponibile > Dovuto > Acconti > Saldo).
+  - Pagina 5 (LM Sezione III): Individuazione dei codici ATECO a 6 cifre e scansione 
+    posizionale dei totali di fine quadro.
+  - Coefficiente di redditività: estratto dal valore di 2 cifre dopo i codici ATECO, 
+    validato contro REGOLE.coefficientiLegali (Set: 40, 54, 62, 67, 74, 78, 86). 
+    Valori non legali (es. mesi=12) vengono scartati con logWarn.
+  - Aliquota imposta: calcolata dal rapporto LM39/LM36 con tolleranza ±1 punto:
+    4-6% → 5%, 14-16% → 15%. Fuori banda → scartata con logWarn.
+  - Credito residuo: estratto da quadro RX31 o fallback LM43/LM44.
+  - Quadro RR: imponibile, INPS dovuto e saldo INPS estratti tramite ordinamento 
+    decrescente dei valori.
 
 ### FattureInCloud XML (type='fic', XML — formato SpreadsheetML)
-Il file è un Excel-XML (SpreadsheetML) con namespace urn:schemas-microsoft-com:office:spreadsheet.
-- Struttura: <Row> con <Cell><Data ss:Type="Number|String|DateTime">valore</Data></Cell>
-- Strategia 1: individua la riga "Totale Annuo" → prima cella Number >= 100 = fatturato lordo annuo
-- Strategia 2 (fallback): somma la prima cella numerica di ogni riga "Totale" mensile nelle sezioni "Fatture emesse"
-- Conteggio fatture: conta ss:Type="DateTime" nelle sezioni "Fatture emesse" (esclude "Fatture ricevute")
-- Bolli: per ogni Row con DateTime, controlla primo Number > 77,47 → conta come fattura con bollo
-  Se impossibile discriminare, usa il totale fatture come fallback
-- NOTA: da FIC si estraggono SOLO fatturato e n. fatture.
-  INPS deducibili, acconti imp.sost. e credito provengono dai PDF RPF/F24.
+- Anno-consapevolezza: rileva l'anno dalle date fattura (ss:Type="DateTime").
+  Se l'anno ≠ anno corrente: NON auto-compila il fatturato, mostra avviso con 
+  link "Applica comunque" (funzione applyFicData()).
+- Fatturato: Totale Annuo o fallback somma totali mensili.
+- Conteggio fatture e bolli: solo sezioni "Fatture emesse".
+
+## Deduplicazione file e reset stato
+- Ogni file caricato ha una firma (name|size|lastModified) salvata in fileSignatures (Set).
+- Se lo stesso file viene ricaricato, viene ignorato con logWarn (previene doppio conteggio).
+- Bottone "🔄 Ricomincia" nello Step 2: chiama resetExtractionState() che azzera 
+  extracted, prevYear, fileSignatures, files, badge visivi, pills e log.
+- All'interno di processFiles, extracted e prevYear vengono ricalcolati da zero 
+  ogni volta (tutti gli slot vengono rielaborati).
+
+## Gestione errori PDF.js
+- Se pdfjsLib non è disponibile (CDN non caricata, offline), pdfAvailable = false.
+- Ogni tentativo di lettura PDF mostra un messaggio leggibile all'utente:
+  "Impossibile leggere i PDF (libreria non disponibile) — inserisci i dati manualmente."
+- Il percorso manuale (skipDocs) resta sempre attivo.
+
+## Sanitizzazione valori estratti
+- sanitizeValue(val, fieldName): scarta NaN, negativi, coeff>100, importi>1.000.000.
+- parseIT robusto: rileva il separatore decimale dall'ultimo simbolo (',' o '.').
+  Gestisce formato IT (1.892,06), intero con migliaia (30.396), formato EN (1,892.06).
 
 ## Merge intelligente
-- Campi accumulabili (multi-F24): totaleVersato, acc0900, acc1790, acc1791, acc1792, fatt, nFatture, fattureCon
+- Campi accumulabili (multi-F24): totaleVersato, acc0900, acc1790, acc1791, acc1792, accInps, nFatture, fattureCon
 - Campi scalari (dichiarazione): assegnati una sola volta, non sovrascritti se già valorizzati
 - Flag booleani (isRicevuta, isGrafico): OR tra file
+- Campi interni (prefisso _): ignorati nel merge
 
 ## Logica prefill (priorità)
 1. hasCodici (F24 digitale) → massima precisione per codice tributo
@@ -71,18 +122,18 @@ Il file è un Excel-XML (SpreadsheetML) con namespace urn:schemas-microsoft-com:
 - redLordo = fattTot × coeff / 100
 - redNetto = max(0, redLordo − inpsDed)
 - imposta = max(0, redNetto × aliq / 100)
-- inpsDovCorrente = redLordo × inpsAliq / 100
-- inpsDovPrec = prevYear.inpsDov se presente, altrimenti inpsDovCorrente
+- Se cassa = GS (supportato):
+  - inpsDovCorrente = redLordo × inpsAliq / 100
+  - saldoInps = max(0, inpsDovCorrente − accInps)
+  - acc1Inps, acc2Inps calcolati
+- Se cassa ≠ GS (non supportato):
+  - inpsDovCorrente = 0, saldoInps = 0, acc1Inps = 0, acc2Inps = 0
+  - S.inpsDisabilitato = true → UI mostra '—'
 - saldoImp = max(0, imposta − accImp − credito)
-- saldoInps = max(0, inpsDovCorrente − accInps)
-- acc1Imp = imposta × REGOLE.imposta.acconto1Pct [floor a 2 decimali]
-- acc2Imp = imposta − acc1Imp [round a 2 decimali]
-- acc1Inps = inpsDovCorrente × REGOLE.inpsGS.acconto1Pct [floor a 2 decimali]
-- acc2Inps = inpsDovCorrente × REGOLE.inpsGS.acconto2Pct [floor a 2 decimali]
 - F24 giugno = saldoImp + acc1Imp + saldoInps + acc1Inps
 - F24 novembre = acc2Imp + acc2Inps
 
-## Test di regressione (anno d’imposta 2025)
+## Test di regressione (anno d'imposta 2025)
 Input: fatt=30396, bolli=41, coeff=78, aliq=15, inpsDed=4466.12, inpsAliq=26.07
        accImp=622, accInps=3784.12, credito=0, prevYear.inpsDov=4730
 Output atteso:
@@ -91,6 +142,14 @@ Output atteso:
   inpsDovCorrente≈6197.58, saldoInps≈2413.46, acc1Inps≈2479.03, acc2Inps≈2479.03
   F24 giugno≈8614.50, F24 novembre≈3927.04, Totale≈12541.54
 
+## Test aggiuntivi (tutti in tests.js, auto-run)
+- parseIT: 7 casi (formato IT, intero, vuoto, null, senza separatore)
+- Coefficiente RPF: validazione contro coefficientiLegali (78✓, 12✗)
+- Aliquota: tolleranza ±1 punto (4.9%→5%, 14.8%→15%, 9%→scartata)
+- sanitizeValue: negativi, NaN, coeff>100, >1M
+- Cassa previdenziale: flag supportato per gs/artig/cassa
+- Netting credito: 3 casi di verifica compensazione (totale, parziale, zero) in Caso 10
+
 ## Design
 - Stile Isomorphic Flat (no shadow pesanti, no bordi doppi)
 - Badge "da documento" / "manuale" su ogni campo precompilato
@@ -98,8 +157,11 @@ Output atteso:
 - Pills estratte in #extracted-pills (griglia)
 - Tooltip modale per ogni campo (TIPS object)
 - Campi auto-filled marcati con classe CSS .auto-filled
+- Alert cassa non-GS: classe .onb-alert.blocking (sfondo rosso)
+- Errore coefficiente: classe .input-error + #onb-coeff-error
+- Warning anno FIC: classe .year-warning + #fic-year-warning
 
 ## Esportazione PDF / Stampa (Step 7)
-- Ottimizzata via media query `@media print` in `css/style.css` per nascondere tutti gli elementi estranei (`.app-nav`, `.stepper`, `.btn-row`, etc.) e visualizzare solo `#step-7` e `#print-area`.
-- Layout di stampa allineato A4 portrait con griglia KPI a 3 colonne fisse (`.print-grid-3`) e box F24 affiancati (`.print-f24-summary`).
-- Funzione `exportPDF()` in `ui.js` che garantisce l'attivazione dello step 7 prima della stampa e applica un delay di 150ms per consentire il rendering finale.
+- Ottimizzata via media query `@media print` in `css/style.css`.
+- Layout di stampa allineato A4 portrait.
+- Funzione `exportPDF()` in `ui.js`.

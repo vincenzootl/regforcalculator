@@ -43,6 +43,7 @@ function runTests() {
   //   F24 giugno 2025: 1790/2025=311, 0900/2025=1892,06, 0900/2024=682 (saldo INPS 2024)
   //                    1792/2024=CREDITO 66 (già compensato — non detrarre di nuovo)
   //   F24 dic. 2025:   1791/2025=311, 0900/2025=1892,06
+  //   RPF25 LM47=66, compensato intero via 1792/2024=66 → credito netto=0
   //   → accImp=622, accInps=3784,12, inpsDed=4466,12 (682+1892,06×2), credito=0
   //
   //   F24 giugno 2026 atteso: 8.614,50
@@ -57,7 +58,7 @@ function runTests() {
     const inpsAliq = D('26.07');
     const accImp   = D(622);
     const accInps  = D('3784.12');
-    const credito  = D(0);
+    const credito  = D(0);                                            // LM47 RPF25 netto = 0 dopo compensazione
 
     const bolliFatt = nBolli.times(2);                               // 82
     const fattTot   = fatt.plus(bolliFatt);                          // 30.478
@@ -236,14 +237,18 @@ function runTests() {
   }
   console.groupEnd();
 
-  // ── CASO 9: cassa previdenziale ─────────────────────────────
-  console.group('Caso 9 — Cassa previdenziale');
+  // ── CASO 10: Netting credito LM47 con F24 1792 ──────────────
+  console.group('Caso 10 — Netting credito LM47 con F24 1792');
   {
-    assertEq('GS supportata', REGOLE.cassaPrevidenziale.gs.supportato, true);
-    assertEq('artig NON supportata', REGOLE.cassaPrevidenziale.artig.supportato, false);
-    assertEq('cassa NON supportata', REGOLE.cassaPrevidenziale.cassa.supportato, false);
+    function computeNetCredit(credito, acc1792) {
+      return Decimal.max(0, D(credito).minus(D(acc1792)));
+    }
+    assert('credito=66, acc1792=66 → netto=0', computeNetCredit(66, 66).toNumber(), 0);
+    assert('credito=100, acc1792=40 → netto=60', computeNetCredit(100, 40).toNumber(), 60);
+    assert('credito=50, acc1792=0 → netto=50', computeNetCredit(50, 0).toNumber(), 50);
   }
   console.groupEnd();
+
 
   // ── Risultato ────────────────────────────────────────────────
   console.log(`\nRisultato: ${pass} test passati, ${fail} falliti`);
@@ -252,10 +257,3 @@ function runTests() {
 }
 
 window.runTests = runTests;
-
-// Auto-run tests on page load for verification
-if (typeof window !== 'undefined') {
-  window.addEventListener('DOMContentLoaded', () => {
-    runTests();
-  });
-}

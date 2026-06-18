@@ -20,13 +20,23 @@ const REGOLE = {
   // ── INPS Gestione Separata ──────────────────────────────────
   inpsGS: {
     aliquota2025:        new Decimal('26.07'), // Circolare INPS 27/2025
-    aliquota2026:        new Decimal('26.07'), // da aggiornare a gennaio con nuova circolare
+    aliquota2026:        new Decimal('26.07'), // ✓ confermata — Circolare INPS 2026
     // Acconti: 80% dell'INPS dovuto anno corrente, in due rate uguali (40%+40%)
     // Fonte: Circolare INPS 27/2025 + verificato su F24 reali
     // INPS 2024=4730 → acconti 2025: 1892,06 × 2 = 3784,12 = 4730 × 80% ✓
     totAccontoPct:       new Decimal('0.80'),
     acconto1Pct:         new Decimal('0.40'),
     acconto2Pct:         new Decimal('0.40'),
+  },
+
+  // ── Acconti ─────────────────────────────────────────────────
+  acconti: {
+    // Fonte: Istruzioni Modello Redditi PF (soglie minime di versamento)
+    // Se base acconto <= 51.65: nessun acconto dovuto.
+    sogliaMinima: new Decimal('51.65'),
+    // Se base acconto tra 51.66 e 257.52: unica rata a novembre (seconda scadenza).
+    // Se base acconto > 257.52: due rate (giugno e novembre).
+    sogliaRateizzazione: new Decimal('257.52')
   },
 
   // ── Marca da bollo ──────────────────────────────────────────
@@ -37,7 +47,7 @@ const REGOLE = {
 
   // ── Regime forfettario ──────────────────────────────────────
   forfettario: {
-    sogliaRicavi:        new Decimal('85000'), // L.197/2022
+    sogliaRicavi:        new Decimal('85000'), // L.197/2022, confermata L.207/2024 (manovra 2025)
     anniAliquotaRidotta: 5,
   },
 
@@ -49,5 +59,20 @@ const REGOLE = {
     '40':  new Decimal('40'),  // commercio
     '86c': new Decimal('86'),  // artigiani e costruzioni
     '54':  new Decimal('40'),  // ristorazione e alloggio
+  },
+
+  // ── Coefficienti legali (per validazione RPF) ─────────────
+  // Unica fonte di verità: usati da parser.js per scartare
+  // valori estratti che non sono coefficienti reali (es. mesi=12)
+  coefficientiLegali: new Set([40, 54, 62, 67, 74, 78, 86]),
+
+  // ── Cassa previdenziale ───────────────────────────────────
+  // Questo calcolatore gestisce SOLO la Gestione Separata INPS.
+  // Artigiani/Commercianti e Casse professionali hanno meccanismi
+  // contributivi diversi: il calcolo INPS viene disabilitato.
+  cassaPrevidenziale: {
+    gs:    { supportato: true,  label: 'Gestione Separata INPS' },
+    artig: { supportato: false, label: 'Artigiani/Commercianti INPS' },
+    cassa: { supportato: false, label: 'Cassa professionale' },
   },
 };

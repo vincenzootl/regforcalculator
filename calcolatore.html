@@ -146,24 +146,24 @@
       <div class="onb-q-label">
         A quale cassa previdenziale sei iscritto?
         <span class="onb-q-sub">
-          Cambia il modo in cui vengono calcolati i contributi.
+          Il calcolatore gestisce completamente solo la Gestione Separata INPS (liberi professionisti senza altra cassa).
         </span>
       </div>
       <div class="onb-options" id="onb-cassa">
         <button class="onb-opt" onclick="selectOnb('cassa','gs',this)">
           <span class="onb-opt-icon">🏛️</span>
           <span class="onb-opt-title">Gestione Separata INPS</span>
-          <span class="onb-opt-sub">Liberi professionisti senza altra cassa — 26,07%</span>
+          <span class="onb-opt-sub">Liberi professionisti senza altra cassa — 26,07% — <strong>calcolo completo</strong></span>
         </button>
         <button class="onb-opt" onclick="selectOnb('cassa','artig',this)">
           <span class="onb-opt-icon">🔧</span>
           <span class="onb-opt-title">Artigiani / Commercianti INPS</span>
-          <span class="onb-opt-sub">Gestione speciale artigiani e commercianti</span>
+          <span class="onb-opt-sub">Gestione speciale — ⚠️ INPS non calcolato, solo imposta sostitutiva</span>
         </button>
         <button class="onb-opt" onclick="selectOnb('cassa','cassa',this)">
           <span class="onb-opt-icon">📋</span>
           <span class="onb-opt-title">Cassa professionale</span>
-          <span class="onb-opt-sub">Avvocati, ingegneri, architetti, dottori commercialisti ecc.</span>
+          <span class="onb-opt-sub">Inarcassa, Cassa Forense, ecc. — ⚠️ INPS non calcolato, solo imposta sostitutiva</span>
         </button>
       </div>
       <div class="onb-alert" id="onb-alert-cassa" style="display:none"></div>
@@ -281,7 +281,7 @@
     <div class="field-grid">
       <div class="field">
         <div class="field-label-row">
-          <span class="field-label">INPS deducibili (€)</span>
+          <span class="field-label">Contributi prev. deducibili</span>
           <span class="field-src manual" id="src-inpsDed">manuale</span>
           <button class="helper-btn" onclick="openTip('inpsDed')">?</button>
         </div>
