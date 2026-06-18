@@ -647,15 +647,36 @@ function parseRPF(text) {
         const totali = vals.slice(vals.length - 6);
         // totali[0] = LM34 reddito lordo (fatturato × coeff), NON il fatturato (LM22)
         // LM22 (fatturato) non appare direttamente nei totali finali del quadro LM
-        result.redLordo = totali[0];
-        result.inpsDed  = totali[1];
-        result.redNetto = totali[3];
-        result.imposta  = totali[5];
+        const redLordo = totali[0];
+        const inpsDed  = totali[1];
+        const redNetto = totali[3];
+        const imposta  = totali[5];
 
-        logOk(`LM34 reddito lordo = € ${fmtEur(result.redLordo)}`);
-        logOk(`LM35 INPS deducibili = € ${fmtEur(result.inpsDed)}`);
-        logOk(`LM36 reddito netto = € ${fmtEur(result.redNetto)}`);
-        logOk(`LM39 imposta sostitutiva = € ${fmtEur(result.imposta)}`);
+        // ── GUARD PLAUSIBILITÀ ──────────────────────────────────────
+        // Un modulo RPF VUOTO (precompilato scaricato senza dati) ha solo
+        // etichette e ",00": la regex finisce per leggere gli indici dei
+        // righi (1,2,3,4...) come fossero euro → redLordo=3, imposta=2, ecc.
+        // Un reddito lordo forfettario reale è almeno qualche migliaio di €
+        // e l'imposta non può superare il reddito netto. Se i valori non
+        // sono plausibili, scartiamo l'intero blocco e non inquiniamo nulla.
+        const plausibile = redLordo >= 1000
+          && redNetto >= 0
+          && imposta >= 0 && imposta <= redNetto
+          && inpsDed >= 0;
+
+        if (plausibile) {
+          result.redLordo = redLordo;
+          result.inpsDed  = inpsDed;
+          result.redNetto = redNetto;
+          result.imposta  = imposta;
+          logOk(`LM34 reddito lordo = € ${fmtEur(result.redLordo)}`);
+          logOk(`LM35 INPS deducibili = € ${fmtEur(result.inpsDed)}`);
+          logOk(`LM36 reddito netto = € ${fmtEur(result.redNetto)}`);
+          logOk(`LM39 imposta sostitutiva = € ${fmtEur(result.imposta)}`);
+        } else {
+          logWarn(`RPF: valori quadro LM non plausibili (redL=${redLordo}, imp=${imposta}) — ` +
+                  `probabile modulo VUOTO o non leggibile. Dati LM ignorati.`);
+        }
       }
 
       // Estrai il coefficiente di redditività dell'attività principale
