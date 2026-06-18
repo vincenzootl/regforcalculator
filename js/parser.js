@@ -1,9 +1,15 @@
 'use strict';
 
 /* ── PDF.js worker ─────────────────────────────────────────── */
+let pdfAvailable = false;
 if (typeof pdfjsLib !== 'undefined') {
-  pdfjsLib.GlobalWorkerOptions.workerSrc =
-    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+  try {
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+    pdfAvailable = true;
+  } catch (e) {
+    console.error('PDF.js worker init failed:', e);
+  }
 }
 
 /* ── STATE ─────────────────────────────────────────────────── */
@@ -12,6 +18,7 @@ const files = {};
 let S = {};
 let chartCfr = null, chartAcc = null;
 let prevYear = {};
+const fileSignatures = new Set(); // dedup: "name|size|lastModified"
 
 /* ── ONBOARDING STATE ──────────────────────────────────────────── */
 const onbState = { anni: null, ateco: null, coeff: 78, cassa: null };
@@ -27,13 +34,13 @@ const ATECO_MAP = {
 };
 
 const CASSA_ALERTS = {
-  artig: `Gli artigiani e commercianti INPS hanno un meccanismo contributivo 
-          diverso (minimale + eccedenza). Il calcolatore gestisce la Gestione 
-          Separata in modo più preciso — per gli artigiani i risultati sono 
-          indicativi.`,
-  cassa: `Le casse professionali (Inarcassa, Cassa Forense, ecc.) hanno aliquote 
-          e regole proprie. Il calcolatore non supporta ancora questi casi: 
-          i contributi INPS mostrati non saranno accurati.`,
+  artig: `⛔ Calcolo INPS non supportato per Artigiani/Commercianti. Questa 
+          gestione ha un meccanismo contributivo diverso (minimale + eccedenza) 
+          che il calcolatore non gestisce. I risultati INPS NON saranno calcolati 
+          — verrà mostrato solo il calcolo dell'imposta sostitutiva.`,
+  cassa: `⛔ Calcolo INPS non supportato per le Casse professionali (Inarcassa, 
+          Cassa Forense, ecc.). Hanno aliquote e regole proprie. I risultati INPS 
+          NON saranno calcolati — verrà mostrato solo il calcolo dell'imposta sostitutiva.`,
 };
 
 function selectOnb(group, value, btn) {
@@ -52,29 +59,43 @@ function selectOnb(group, value, btn) {
     }
   }
 
-  // Mostra alert per casse non supportate
+  // Mostra alert per casse non supportate (bloccante per INPS)
   if (group === 'cassa') {
     const alertEl = document.getElementById('onb-alert-cassa');
     if (alertEl) {
-      if (CASSA_ALERTS[value]) {
+      const cassaInfo = REGOLE.cassaPrevidenziale[value];
+      if (cassaInfo && !cassaInfo.supportato && CASSA_ALERTS[value]) {
+        alertEl.innerHTML = CASSA_ALERTS[value];
+        alertEl.style.display = 'block';
+        alertEl.classList.add('blocking');
+      } else if (CASSA_ALERTS[value]) {
         alertEl.innerHTML = '⚠️ ' + CASSA_ALERTS[value];
         alertEl.style.display = 'block';
+        alertEl.classList.remove('blocking');
       } else {
         alertEl.style.display = 'none';
+        alertEl.classList.remove('blocking');
       }
     }
   }
 
-  // Avviso fine quinquennio
+  // Avviso fine quinquennio + requisiti startup
   if (group === 'anni') {
     const alertEl = document.getElementById('onb-alert-anni');
     if (alertEl) {
       const currYear = new Date().getFullYear();
-      alertEl.innerHTML = value === '1-5'
-        ? `✓ Aliquota agevolata 5% — ricorda che scade al termine del quinto 
+      if (value === '1-5') {
+        alertEl.innerHTML = `✓ Aliquota agevolata 5% — ricorda che scade al termine del quinto 
            anno. Se nel ${currYear} concludi il quinquennio, dal prossimo anno 
-           passerai al 15%.`
-        : `✓ Aliquota ordinaria 15% applicata.`;
+           passerai al 15%.
+           <br><br>
+           <strong>Attenzione:</strong> l'aliquota al 5% spetta solo se la tua attività 
+           è realmente nuova e non è la prosecuzione di un'attività precedente 
+           (dipendente o autonoma nello stesso settore). Questo è un requisito 
+           di legge (art. 1, comma 65, L. 190/2014), non una scelta.`;
+      } else {
+        alertEl.innerHTML = `✓ Aliquota ordinaria 15% applicata.`;
+      }
       alertEl.style.display = 'block';
     }
   }
@@ -84,8 +105,27 @@ function selectOnb(group, value, btn) {
 }
 
 function onbCoeffChange(val) {
-  onbState.coeff = parseFloat(val) || 78;
+  const parsed = parseFloat(val);
+  const inputEl = document.getElementById('onb-coeff-val');
+  const errorEl = document.getElementById('onb-coeff-error');
+  const isValid = !isNaN(parsed) && parsed >= 1 && parsed <= 100;
+
+  if (isValid) {
+    onbState.coeff = parsed;
+    onbState._coeffValid = true;
+    if (inputEl) inputEl.classList.remove('input-error');
+    if (errorEl) errorEl.style.display = 'none';
+  } else {
+    onbState._coeffValid = false;
+    if (inputEl) inputEl.classList.add('input-error');
+    if (errorEl) {
+      errorEl.textContent = 'Coefficiente non valido (1–100)';
+      errorEl.style.display = 'block';
+    }
+  }
+
   updateOnbRecap();
+  checkOnbComplete();
 }
 
 function updateOnbRecap() {
@@ -125,16 +165,18 @@ function checkOnbComplete() {
   const { anni, ateco, cassa } = onbState;
   const btn = document.getElementById('onb-next-btn');
   if (!btn) return;
-  const complete = anni && ateco && cassa;
+  // Se custom e coefficiente non valido → blocca
+  const coeffOk = ateco !== 'custom' || onbState._coeffValid !== false;
+  const complete = anni && ateco && cassa && coeffOk;
   btn.disabled = !complete;
   btn.style.opacity = complete ? '1' : '.4';
   btn.style.cursor  = complete ? 'pointer' : 'not-allowed';
 }
 
-function completeOnboarding() {
+/* ── APPLY ONBOARDING → FIELDS (centralizzato) ──────────────── */
+function applyOnboardingToFields() {
   if (!onbState.anni || !onbState.ateco || !onbState.cassa) return;
 
-  // Applica i valori ai campi del calcolatore
   const aliq  = onbState.anni === '1-5' ? 5 : 15;
   const coeff = onbState.ateco !== 'custom'
     ? (ATECO_MAP[onbState.ateco]?.coeff ?? 78)
@@ -145,12 +187,35 @@ function completeOnboarding() {
   if (elAliq)  { elAliq.value  = aliq;  elAliq.classList.add('auto-filled');  setSrc('aliq',  true); }
   if (elCoeff) { elCoeff.value = coeff; elCoeff.classList.add('auto-filled'); setSrc('coeff', true); }
 
-  // Flag cassa per il calcolo
+  // Flag cassa per il calcolo (letto da calcolo.js)
   window.onbCassa = onbState.cassa;
 
+  // Disabilita campi INPS se cassa non supportata
+  const cassaInfo = REGOLE.cassaPrevidenziale[onbState.cassa];
+  const inpsDisabled = cassaInfo && !cassaInfo.supportato;
+  const inpsFields = ['i-inps-ded', 'i-inps-aliq', 'i-acc-inps'];
+  inpsFields.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.disabled = inpsDisabled;
+      if (inpsDisabled) {
+        el.value = '';
+        el.placeholder = 'N/A';
+        el.classList.add('auto-filled');
+      }
+    }
+  });
+}
+
+function completeOnboarding() {
+  if (!onbState.anni || !onbState.ateco || !onbState.cassa) return;
+
+  applyOnboardingToFields();
+
   // Avviso se cassa non supportata
-  if (onbState.cassa !== 'gs') {
-    logWarn(`Cassa previdenziale "${onbState.cassa}" — i contributi INPS mostrati sono indicativi.`);
+  const cassaInfo = REGOLE.cassaPrevidenziale[onbState.cassa];
+  if (cassaInfo && !cassaInfo.supportato) {
+    logWarn(`Cassa previdenziale "${cassaInfo.label}" — i contributi INPS NON saranno calcolati. Solo l'imposta sostitutiva verrà mostrata.`);
   }
 
   goStep(1); // Vai allo step Documenti
@@ -168,9 +233,20 @@ const TIPS = {
     body:'Sono deducibili i contributi INPS effettivamente versati nell\'anno solare (non quelli "di competenza"). Include: il saldo anno precedente versato a giugno + il 1° e 2° acconto versati durante l\'anno. NON include il saldo dell\'anno in corso (che pagherai il prossimo giugno).',
     example:'Esempio 2025: saldo 2024 versato a giugno 2025 (€682) + 1° acconto 2025 (€1.892) + 2° acconto 2025 (€1.892) = €4.466 deducibili. Cerca nei tuoi F24 con codice 0900.'
   },
-  inpsAliq:{ icon:'🏛️', title:'Aliquota INPS Gestione Separata', body:'L\'aliquota 2025 è 26,07% sul reddito lordo forfettario.', example:'26,07% × € 19.500 di reddito lordo = circa € 5.084 di contributi dovuti' },
+  inpsAliq:{ icon:'🏛️', title:'Aliquota INPS Gestione Separata', body:'L\'aliquota è 26,07% sul reddito lordo forfettario (Circolare INPS 27/2025). Aggiornare se la circolare dell\'anno corrente modifica la percentuale.', example:'26,07% × € 19.500 di reddito lordo = circa € 5.084 di contributi dovuti' },
   accImp:  { icon:'💳', title:'Acconti imposta sostitutiva già versati', body:'Acconti sull\'imposta sostitutiva (codice 1790 + 1791 nei tuoi F24).', example:'1° acconto € 400 + 2° acconto € 400 = € 800 versati durante l\'anno' },
-  accInps: { icon:'💳', title:'Acconti INPS già versati', body:'Totale dei versamenti INPS Gestione Separata effettuati durante l\'anno.', example:'Saldo anno prec. (€ 500) + 1° acc. (€ 1.200) + 2° acc. (€ 1.200) = € 2.900' },
+  accInps: {
+    icon:'💳',
+    title:'Acconti INPS già versati (solo anno dichiarato)',
+    body:'Inserire SOLO i versamenti cod.0900 riferiti all\'anno che si sta dichiarando ' +
+         '(periodo = anno corrente). Il saldo dell\'anno precedente (es. saldo 2024 versato a giugno 2025) ' +
+         'NON va qui — va nel campo "INPS deducibili". ' +
+         'Se hai caricato i PDF F24, questo campo è già compilato correttamente.',
+    example:'Esempio per dichiarazione 2025: ' +
+            '1° acconto INPS 2025 (giugno 2025): € 1.892 + ' +
+            '2° acconto INPS 2025 (novembre 2025): € 1.892 = € 3.784. ' +
+            'NON includere il saldo 2024 (€ 682) — quello è già in "INPS deducibili".'
+  },
   credito: { icon:'✅', title:'Credito anno precedente residuo', body:'Se dalla dichiarazione dell\'anno scorso è emerso un credito non ancora compensato.', example:'LM43 = € 66, LM44 = € 66 → credito residuo = € 0' },
   mesi:    { icon:'📅', title:'Mesi al F24 di giugno', body:'Quanti mesi mancano alla scadenza del F24 di giugno (30 giugno).', example:'6 mesi rimanenti e € 6.000 da versare → € 1.000 al mese da mettere da parte' }
 };
@@ -193,6 +269,10 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closeTip(nul
 
 let currentStep = 0;
 function goStep(n) {
+  // Se si sta uscendo dallo step 0 (profilo), applica le impostazioni ai campi
+  if (currentStep === 0 && n !== 0) {
+    applyOnboardingToFields();
+  }
   if (n === 2 && Object.keys(files).length === 0) {
     logWarn('Nessun documento caricato — dovrai inserire tutti i valori manualmente.');
   }
@@ -205,6 +285,36 @@ function goStep(n) {
   window.scrollTo({top:0, behavior:'smooth'});
 }
 function skipDocs() { goStep(2); }
+
+/* ── RESET EXTRACTION STATE ──────────────────────────────────── */
+function resetExtractionState() {
+  for (const k of Object.keys(extracted)) delete extracted[k];
+  for (const k of Object.keys(prevYear)) delete prevYear[k];
+  fileSignatures.clear();
+  for (const k of Object.keys(files)) delete files[k];
+
+  // Reset badge visivi
+  document.querySelectorAll('.upload-zone').forEach(uz => {
+    uz.classList.remove('has-file');
+  });
+  ['f24-badge', 'rpf-badge', 'fic-badge'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = '';
+  });
+
+  // Reset pills e log
+  const pills = document.getElementById('extracted-pills');
+  if (pills) { pills.style.display = 'none'; pills.innerHTML = ''; }
+  const logEl = document.getElementById('extract-log');
+  if (logEl) { logEl.innerHTML = ''; logEl.classList.remove('visible'); }
+
+  // Reset warning anno
+  const yearWarn = document.getElementById('fic-year-warning');
+  if (yearWarn) yearWarn.style.display = 'none';
+
+  logOk('Stato di estrazione azzerato. Puoi ricaricare i documenti.');
+}
+window.resetExtractionState = resetExtractionState;
 
 function dragOver(e, el) { e.preventDefault(); el.classList.add('drag'); }
 function dragLeave(el) { el.classList.remove('drag'); }
@@ -244,6 +354,9 @@ function logInfo(m) { log(m, 'log-info'); }
 function logErr(m)  { log(m, 'log-err'); }
 
 async function pdfToText(file) {
+  if (!pdfAvailable || typeof pdfjsLib === 'undefined') {
+    throw new Error('PDF_UNAVAILABLE');
+  }
   const buf = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({data: buf}).promise;
   let text = '';
@@ -255,11 +368,54 @@ async function pdfToText(file) {
   return text;
 }
 
+/**
+ * parseIT — parsing numerico robusto per formati IT e anomali.
+ * Rileva il separatore decimale dall'ultimo simbolo ',' o '.'.
+ * Gestisce: "1.892,06"→1892.06, "30.396"→30396, "682,00"→682, "2.819,06"→2819.06
+ */
 function parseIT(s) {
   if (!s) return null;
-  const clean = String(s).trim().replace(/\./g,'').replace(',','.');
+  const str = String(s).trim();
+  if (!str) return null;
+
+  const lastComma = str.lastIndexOf(',');
+  const lastDot   = str.lastIndexOf('.');
+  let clean;
+
+  if (lastComma > lastDot) {
+    // Formato IT: 1.892,06 → rimuovi punti migliaia, virgola → punto
+    clean = str.replace(/\./g, '').replace(',', '.');
+  } else if (lastDot > lastComma) {
+    // Potrebbe essere formato EN (1,892.06) o intero IT con migliaia (30.396)
+    // Se ha esattamente 3 cifre dopo l'ultimo punto e nessun'altra parte decimale,
+    // è un separatore di migliaia
+    const afterDot = str.slice(lastDot + 1);
+    if (/^\d{3}$/.test(afterDot) && !/\..*\./.test(str.replace(/,/g, ''))) {
+      // Es: 30.396 → 30396, ma NON 1.892.06
+      clean = str.replace(/\./g, '').replace(/,/g, '');
+    } else {
+      // Formato EN con punto decimale: 1,892.06
+      clean = str.replace(/,/g, '');
+    }
+  } else {
+    // Nessun separatore o entrambi assenti
+    clean = str.replace(/,/g, '');
+  }
+
   const n = parseFloat(clean);
   return isNaN(n) ? null : n;
+}
+
+/**
+ * sanitizeValue — scarta NaN, negativi e outlier impossibili.
+ * Restituisce null se il valore non è valido.
+ */
+function sanitizeValue(val, fieldName) {
+  if (val == null || isNaN(val)) return null;
+  if (val < 0) { logWarn(`${fieldName}: valore negativo (${val}) scartato.`); return null; }
+  if (fieldName === 'coeff' && val > 100) { logWarn(`${fieldName}: valore ${val} > 100 scartato.`); return null; }
+  if (val > 1000000) { logWarn(`${fieldName}: valore ${val} troppo alto, scartato.`); return null; }
+  return val;
 }
 
 function extractAmounts(s) {
@@ -288,19 +444,26 @@ function parseF24(text) {
   const result = { acc0900: 0, acc1790: 0, acc1791: 0, acc1792: 0, accInps: 0, accInpsSaldoPrec: 0, totaleVersato: 0, isRicevuta: false, isGrafico: false };
   const pagesText = text.split('\n').filter(p => p.trim().length > 0);
 
-  // ── Sezione Ricevute (formato piatto globale) ─────────────────
+  // ── Sezione Ricevute Entratel (formato "Comunicazione di avvenuto ricevimento") ──
+  // IMPORTANTE: rilevare SOLO ricevute Entratel (header specifico), NON le deleghe F24.
+  // La ricevuta contiene solo l'importo totale, NON i codici tributo dettagliati.
   const flatGlobal = text.replace(/\s+/g,' ').trim();
-  const ricevutaRe = /[Ii]mporto\s+versamento\s*:\s*[Ee€\.\s]+\s*([\d\.\s]+,\s*\d{2})/g;
-  let mRic, totRic = 0, nRic = 0;
-  while ((mRic = ricevutaRe.exec(flatGlobal)) !== null) {
-    const v = parseIT(mRic[1].replace(/\s+/g, ''));
-    if (v && v > 0 && v < 100000) { totRic += v; nRic++; logOk(`Ricevuta: € ${fmtEur(v)}`); }
-  }
-  if (nRic > 0) {
-    result.isRicevuta    = true;
-    result.totaleVersato = Math.round(totRic * 100) / 100;
-    logInfo(`Trovate ${nRic} ricevuta/e. Totale: € ${fmtEur(result.totaleVersato)}`);
-    return result;
+  const isEntratelRicevuta = /AVVENUTO\s+RICEVIMENTO|TELEMATICO\s+ENTRATEL|COMUNICAZIONE\s+DI\s+AVVENUTO/i.test(flatGlobal);
+  if (isEntratelRicevuta) {
+    const ricevutaRe = /[Ii]mporto\s+versamento\s*:\s*[Ee€\.\s]+\s*([\d\.\s]+,\s*\d{2})/g;
+    let mRic, totRic = 0, nRic = 0;
+    while ((mRic = ricevutaRe.exec(flatGlobal)) !== null) {
+      const v = parseIT(mRic[1].replace(/\s+/g, ''));
+      if (v && v > 0 && v < 100000) { totRic += v; nRic++; logOk(`Ricevuta Entratel: € ${fmtEur(v)}`); }
+    }
+    if (nRic > 0) {
+      result.isRicevuta    = true;
+      result.totaleVersato = Math.round(totRic * 100) / 100;
+      logWarn(`Rilevata ricevuta Entratel (totale versato: € ${fmtEur(result.totaleVersato)}). ` +
+              `Per il calcolo preciso carica la DELEGA F24 originale (il PDF con i codici tributo), ` +
+              `non la ricevuta di pagamento. Puoi trovare la delega nel cassetto fiscale AdE → sezione F24.`);
+      return result;
+    }
   }
 
   // ── Sezione F24 Digitale con deduplicazione pagine ────────────
@@ -396,7 +559,7 @@ function parseF24(text) {
     result.accInps = Math.round(result.accInps * 100) / 100;
     result.accInpsSaldoPrec = Math.round((result.accInpsSaldoPrec || 0) * 100) / 100;
 
-    result.totaleVersato = Math.round((result.acc0900 + result.acc1790 + result.acc1791) * 100) / 100;
+    result.totaleVersato = Math.round((result.acc0900 + result.acc1790 + result.acc1791 + result.acc1792) * 100) / 100;
     logInfo(`F24 digitale: totale versato = € ${fmtEur(result.totaleVersato)}`);
     return result;
   }
@@ -482,13 +645,13 @@ function parseRPF(text) {
       // [RedditoLordo, INPSDeducibile, INPSDeducibile_rip, RedditoNetto, RedditoNetto_rip, ImpostaSostitutiva]
       if (vals.length >= 6) {
         const totali = vals.slice(vals.length - 6);
-        result.fatt = totali[0];
+        // totali[0] = LM34 reddito lordo (fatturato × coeff), NON il fatturato (LM22)
+        // LM22 (fatturato) non appare direttamente nei totali finali del quadro LM
         result.redLordo = totali[0];
-        result.inpsDed = totali[1];
+        result.inpsDed  = totali[1];
         result.redNetto = totali[3];
-        result.imposta = totali[5];
-        
-        logOk(`LM22 fatturato = € ${fmtEur(result.fatt)}`);
+        result.imposta  = totali[5];
+
         logOk(`LM34 reddito lordo = € ${fmtEur(result.redLordo)}`);
         logOk(`LM35 INPS deducibili = € ${fmtEur(result.inpsDed)}`);
         logOk(`LM36 reddito netto = € ${fmtEur(result.redNetto)}`);
@@ -496,22 +659,42 @@ function parseRPF(text) {
       }
 
       // Estrai il coefficiente di redditività dell'attività principale
+      // Validato contro REGOLE.coefficientiLegali per scartare valori spuri (es. mesi=12)
       for (const aMatch of atecoMatches) {
         const localAfter = flatLM.slice(aMatch.index + 6, aMatch.index + 100);
-        const coeffM = localAfter.match(/\b(40|54|62|67|78|86)\b/);
+        const coeffM = localAfter.match(/\b(\d{2})\b/);
         if (coeffM) {
-          result.coeff = parseInt(coeffM[1], 10);
-          logOk(`Coefficiente redditività (da dati ATECO) = ${result.coeff}%`);
-          break;
+          const coeffVal = parseInt(coeffM[1], 10);
+          if (REGOLE.coefficientiLegali.has(coeffVal)) {
+            result.coeff = coeffVal;
+            logOk(`Coefficiente redditività (da dati ATECO) = ${result.coeff}%`);
+            break;
+          } else {
+            logWarn(`Coefficiente RPF ${coeffVal} non è un coefficiente legale — ignorato.`);
+          }
         }
+      }
+
+      // Deriva il fatturato (LM22) da redLordo / coeff se entrambi disponibili.
+      // LM22 non appare nei totali finali — si ricava inverso: LM22 = LM34 / (coeff/100)
+      if (result.redLordo && result.coeff) {
+        result.fatt = Math.round(result.redLordo / (result.coeff / 100) * 100) / 100;
+        logOk(`LM22 fatturato (derivato LM34/coeff) = € ${fmtEur(result.fatt)}`);
       }
     }
 
-    // Aliquota calcolata
+    // Aliquota calcolata con tolleranza ±1 punto
     if (result.redNetto && result.imposta) {
       const ratio = (result.imposta / result.redNetto) * 100;
-      if (Math.abs(ratio - 5) < 2.5) { result.aliqImposta = 5; logOk(`Aliquota imposta = 5%`); }
-      else if (Math.abs(ratio - 15) < 2.5) { result.aliqImposta = 15; logOk(`Aliquota imposta = 15%`); }
+      if (ratio >= 4 && ratio <= 6) {
+        result.aliqImposta = 5;
+        logOk(`Aliquota imposta = 5% (rilevata ${ratio.toFixed(1)}%)`);
+      } else if (ratio >= 14 && ratio <= 16) {
+        result.aliqImposta = 15;
+        logOk(`Aliquota imposta = 15% (rilevata ${ratio.toFixed(1)}%)`);
+      } else {
+        logWarn(`Aliquota inferita ${ratio.toFixed(1)}% fuori banda — non assegnata.`);
+      }
     }
   }
 
@@ -587,8 +770,15 @@ function parseRPF(text) {
     const lm47m = flatPage.match(/LM\s*47[^\d]*([\d.,]+)/);
     if (lm47m) {
       result.lm47 = parseIT(lm47m[1]);
-      logOk(`LM47 imposta a credito = € ${fmtEur(result.lm47)}`);
+      logOk(`LM47 eccedenza da riportare = € ${fmtEur(result.lm47)}`);
     }
+  }
+
+  // LM47 = eccedenza imposta sostitutiva da riportare agli anni successivi.
+  // È il credito residuo reale (più preciso di LM43−LM44 che misura solo quanto compensato in F24).
+  if (result.lm47 != null && result.lm47 > 0) {
+    result.credito = result.lm47;
+    logOk(`Credito residuo anno prec. (LM47) = € ${fmtEur(result.credito)}`);
   }
 
   // ── RR Sezione (INPS) ─────────────────────────────────────────
@@ -639,20 +829,62 @@ function parseRedditi(text) { return parseRPF(text); }
 
 
 /* ── PARSER FattureInCloud XML (SpreadsheetML) ──────────────── */
-// Dati reali (riepilogo economico.xml):
-//   Riga "Totale Annuo" (riga 1649):
-//     Col1: "Totale Annuo"  Col2: 30396 (imponibile emesse)
-//     Col3: 2482.64 (IVA, dovrebbe essere 0 in forfettario ma qui ha qualcosa)
-//     Col4: 27913.36 (imponibile netto dopo correzioni ammortamenti)
-//   Date fatture: ss:Type="DateTime" con valore "2025-01-14T00:00:00.000"
-//   IMPORTANTE: contare SOLO le sezioni "Fatture emesse", NON "Fatture ricevute"
+//
+// Struttura reale verificata su file "riepilogo economico.xml" (FattureInCloud, 2025):
+//
+//  Worksheet "Contabilità" — colonne per riga fattura emessa:
+//    Col1: ss:Type="Number"   → # fattura (1, 2, 3...)     ← PRIMO Number (NON imponibile!)
+//    Col2: ss:Type="DateTime" → data fattura
+//    Col3: ss:Type="String"   → cliente
+//    Col4: ss:Type="String"   → P.IVA
+//    Col5: ss:Type="String"   → CF
+//    Col6: ss:Type="Number"   → Imponibile                 ← SECONDO Number = ciò che serve
+//    Col7...: IVA, ritenute, rivalsa, cassa, ...
+//
+//  Riga "Totale Annuo" (riga 1649 del file 2025):
+//    Col1: "Totale Annuo"  Col2: 30396 (imponibile emesse, PRIMO Number della riga)
+//    Col3: 2482.64 (IVA ricevute × detraibilità)
+//    Col4: 27913.36 (netto contabile post-ammortamenti/deduzioni)
+//
+//  Stringa periodo: "Periodo 01/01/2025 - 31/12/2025"
+//
 function parseFIC(text) {
   logInfo('FattureInCloud: estrazione dati XML SpreadsheetML...');
   const result = { fatt: 0, nFatture: 0, fattureCon: 0 };
+  const annoCorrente = new Date().getFullYear();
 
-  // ── Fatturato: Riga "Totale Annuo" ───────────────────────────
-  // La prima cella numerica dopo "Totale Annuo" = imponibile lordo emesse
-  const totAnnuoIdx = text.indexOf('Totale Annuo');
+  // ── Anno: prima da stringa "Periodo", poi da date fatture ────
+  const periodoM = text.match(/Periodo\s+\d{2}\/\d{2}\/(\d{4})/);
+  if (periodoM) {
+    const a = parseInt(periodoM[1], 10);
+    result._annoRilevato = a;
+    if (a !== annoCorrente) {
+      logWarn(`FIC: documento periodo ${a} — anno corrente è ${annoCorrente}.`);
+    } else {
+      logOk(`FIC: periodo ${a} ✓`);
+    }
+  } else {
+    // Fallback: rileva anno dalle date fatture
+    const dateRe = /ss:Type="DateTime">\s*(\d{4})-/g;
+    let dateM;
+    const anniRilevati = new Set();
+    while ((dateM = dateRe.exec(text)) !== null) {
+      anniRilevati.add(parseInt(dateM[1], 10));
+    }
+    if (anniRilevati.size > 0) {
+      const annoMax = Math.max(...anniRilevati);
+      result._annoRilevato = annoMax;
+      if (annoMax !== annoCorrente) {
+        logWarn(`FIC: fatture anno ${annoMax}, anno corrente ${annoCorrente}.`);
+      } else {
+        logOk(`FIC: anno fatture = ${annoMax} ✓`);
+      }
+    }
+  }
+
+  // ── Fatturato: col2 della riga "Totale Annuo" ─────────────────
+  // "Totale Annuo" è una cella stringa; il primo Number della stessa riga = imponibile emesse.
+  const totAnnuoIdx = text.indexOf('>Totale Annuo<');
   if (totAnnuoIdx !== -1) {
     const rowStart = text.lastIndexOf('<Row', totAnnuoIdx);
     const rowEnd   = text.indexOf('</Row>', totAnnuoIdx) + 6;
@@ -665,16 +897,18 @@ function parseFIC(text) {
         const v = parseFloat(mNum[1]);
         if (!isNaN(v) && v > 0) vals.push(v);
       }
-      // Prima cella numerica >= 100 = imponibile lordo (es. 30396)
-      const fatturato = vals.find(v => v >= 100 && v < 500000);
-      if (fatturato) {
-        result.fatt = Math.round(fatturato * 100) / 100;
-        logOk(`Totale Annuo fatturato = € ${fmtEur(result.fatt)}`);
+      // vals[0] = col2 = imponibile totale fatture emesse (es. 30396)
+      // vals[1] = col3 = IVA/costi ricevute (es. 2482.64) — non usare
+      if (vals.length > 0 && vals[0] >= 100 && vals[0] < 500000) {
+        result.fatt = Math.round(vals[0] * 100) / 100;
+        logOk(`Totale Annuo imponibile emesse = € ${fmtEur(result.fatt)}`);
       }
     }
   }
 
-  // ── Fallback: somma prima cella numerica di ogni "Totale" mensile emesse ──
+  // ── Fallback fatturato: somma "Totale" mensile sezioni emesse ─
+  // Usato solo se "Totale Annuo" non trovato.
+  // Nella riga "Totale" delle emesse, il PRIMO Number = imponibile mensile.
   if (!result.fatt) {
     const blocks = text.split('Fatture emesse');
     let sum = 0;
@@ -686,6 +920,7 @@ function parseFIC(text) {
       const rEnd   = block.indexOf('</Row>', totIdx) + 6;
       if (rStart === -1 || rEnd <= rStart) continue;
       const rowTxt = block.slice(rStart, rEnd);
+      // Nella riga Totale delle emesse i primi 5 cells sono empty, poi imponibile
       const numRe2 = /<Data\s+ss:Type="Number">([^<]+)<\/Data>/g;
       let mN, first = true;
       while ((mN = numRe2.exec(rowTxt)) !== null) {
@@ -695,60 +930,69 @@ function parseFIC(text) {
     }
     if (sum >= 100) {
       result.fatt = Math.round(sum * 100) / 100;
-      logOk(`Fatturato da totali mensili = € ${fmtEur(result.fatt)}`);
+      logOk(`Fatturato da totali mensili emesse = € ${fmtEur(result.fatt)}`);
     }
   }
 
-  // ── Conta fatture emesse (solo sezioni "Fatture emesse") ─────
-  // Ogni riga con ss:Type="DateTime" in una sezione "Fatture emesse" = 1 fattura
-  // ESCLUDE le sezioni "Fatture ricevute"
+  // ── Conta fatture emesse (via DateTime nelle sezioni emesse) ──
   const emesseSections = text.split(/Fatture emesse/g);
   let nFattureEmesse = 0;
   for (let i = 1; i < emesseSections.length; i++) {
-    // Tronca alla prima occorrenza di "Fatture ricevute" o "Totale Annuo"
     const block = emesseSections[i].split(/Fatture ricevute|Totale Annuo/)[0];
-    // Conta solo le righe con DateTime (= righe di singola fattura, non Totale né header)
     nFattureEmesse += (block.match(/ss:Type="DateTime"/g) || []).length;
   }
   if (nFattureEmesse > 0) {
     result.nFatture = nFattureEmesse;
-    logOk(`Fatture emesse: ${nFattureEmesse}`);
+    logOk(`Fatture emesse contate: ${nFattureEmesse}`);
   }
 
-  // ── Conta fatture con bollo (imponibile > 77,47 per fattura emessa) ──
-  // Nel forfettario IVA=0 → ogni fattura emessa con imponibile > 77,47 richiede bollo
+  // ── Conta fatture con bollo (imponibile > € 77,47) ───────────
+  //
+  // Struttura riga fattura emessa: [#(Number), Data(DateTime), Cliente(String),
+  //   PIVA(String), CF(String), Imponibile(Number), IVA(Number), ...]
+  //
+  // Il PRIMO ss:Type="Number" in ogni riga è il # fattura (1, 2, 3...).
+  // Il SECONDO ss:Type="Number" è l'IMPONIBILE — quello da confrontare con 77,47.
+  //
+  // Bug precedente: si usava il primo Number → # fattura ≤ 41 → sempre < 77.47 → 0 bolli.
+  //
   let conBollo = 0;
+  let righeAnalizzate = 0;
   for (let i = 1; i < emesseSections.length; i++) {
     const block = emesseSections[i].split(/Fatture ricevute|Totale Annuo/)[0];
-    // Ogni Row con DateTime è una riga fattura
-    // Pattern Row che contiene DateTime: può essere Row semplice o Row con attributi
     const rowRe = /<Row[^>]*>([\s\S]*?)<\/Row>/g;
     let mRow;
     while ((mRow = rowRe.exec(block)) !== null) {
       const rowContent = mRow[1];
-      // Deve contenere DateTime (= riga di fattura)
+      // Salta righe senza data (header, Totale, righe vuote)
       if (!rowContent.includes('ss:Type="DateTime"')) continue;
-      // Cerca il primo Number > 0 nella riga (= imponibile)
-      const firstNumM = rowContent.match(/<Data\s+ss:Type="Number">([\d.]+)<\/Data>/);
-      if (firstNumM) {
-        const imp = parseFloat(firstNumM[1]);
-        if (!isNaN(imp) && imp > 77.47) conBollo++;
+      righeAnalizzate++;
+      // Estrai TUTTI i Number della riga; il secondo è l'imponibile
+      const allNums = [...rowContent.matchAll(/<Data\s+ss:Type="Number">([\d.]+)<\/Data>/g)];
+      if (allNums.length >= 2) {
+        const imp = parseFloat(allNums[1][1]); // [1] = secondo match = imponibile (col6)
+        if (!isNaN(imp) && imp > REGOLE.bolloDaBollo.sogliaEsenzione.toNumber()) {
+          conBollo++;
+        }
       }
     }
   }
-  if (conBollo > 0) {
+
+  if (righeAnalizzate > 0) {
     result.fattureCon = conBollo;
-    logOk(`Fatture con marca da bollo (>77,47): ${conBollo}`);
-  } else if (result.nFatture > 0) {
-    result.fattureCon = result.nFatture;
-    logInfo(`Bolli: non discriminato, uso totale fatture emesse: ${result.nFatture}`);
-    if (result.fattureCon === result.nFatture && conBollo === 0) {
-      logWarn(`Bolli: impossibile discriminare — usato totale fatture (${result.nFatture}) come stima. Verifica manualmente.`);
+    if (conBollo > 0) {
+      logOk(`Fatture con marca da bollo (imponibile > € 77,47): ${conBollo} su ${righeAnalizzate}`);
+    } else {
+      logInfo(`Nessuna fattura con imponibile > € 77,47 — bollo = 0. Verifica se corretto.`);
     }
+  } else if (result.nFatture > 0) {
+    // Nessuna riga analizzata (struttura diversa): stima conservativa
+    result.fattureCon = result.nFatture;
+    logWarn(`Bolli: struttura righe non riconosciuta — usato n. fatture (${result.nFatture}) come stima. Verifica manualmente.`);
   }
 
   if (result.fatt > 0) {
-    logInfo('ℹ️ FIC: estrae fatturato e n. fatture. Per INPS/acconti/credito carica i PDF RPF e F24.');
+    logInfo('FIC: estrae fatturato e n. fatture. Per INPS/acconti/credito carica i PDF F24 e Redditi.');
   }
   return result;
 }
@@ -756,13 +1000,21 @@ function parseFIC(text) {
 
 /* ── PROCESS FILES E MERGE ──────────────────────────────────── */
 async function processFiles(fileList, type) {
-  files[type] = fileList;
+  // ── DEDUP per file (name + size + lastModified) ─────────────
+  const newFiles = [];
+  for (const file of fileList) {
+    const sig = `${file.name}|${file.size}|${file.lastModified}`;
+    if (fileSignatures.has(sig)) {
+      logWarn(`File "${file.name}" già caricato — ignorato.`);
+      continue;
+    }
+    fileSignatures.add(sig);
+    newFiles.push(file);
+  }
+  if (newFiles.length === 0) return;
 
-  // Reset visivo badge solo per lo slot corrente (gli altri mantengono il loro stato)
-  document.querySelectorAll('.upload-zone').forEach(uz => {
-    if (!uz.classList.contains('has-file')) return;
-    // già gestito da setBadge — nessuna azione necessaria
-  });
+  // Aggiunge (non sovrascrive) i file nello slot
+  files[type] = (files[type] || []).concat(newFiles);
 
   // Aggiorna i badge per tutti gli slot
   for (const [slotType, list] of Object.entries(files)) {
@@ -783,22 +1035,72 @@ async function processFiles(fileList, type) {
       try {
         let parsed = {};
         const isPDF = file.name.toLowerCase().endsWith('.pdf');
-        const isXML = /\.(xml)$/i.test(file.name);
-
+        const isXML = /\.(xml|xls|xlsx|csv)$/i.test(file.name);
+        
         if (isPDF) {
-          const text = await pdfToText(file);
-          if      (slotType === 'f24')     parsed = parseF24(text);
-          else if (slotType === 'rpf')     parsed = parseRPF(text);
-          else if (slotType === 'redditi') parsed = parseRedditi(text);
+          if (!pdfAvailable || typeof pdfjsLib === 'undefined') {
+            logErr(`Impossibile leggere "${file.name}": libreria PDF non disponibile. Inserisci i dati manualmente.`);
+            continue;
+          }
+          try {
+            const text = await pdfToText(file);
+            if      (slotType === 'f24')     parsed = parseF24(text);
+            else if (slotType === 'rpf')     parsed = parseRPF(text);
+            else if (slotType === 'redditi') parsed = parseRedditi(text);
+          } catch (pdfErr) {
+            if (pdfErr.message === 'PDF_UNAVAILABLE') {
+              logErr(`Impossibile leggere i PDF (libreria non disponibile) — inserisci i dati manualmente.`);
+            } else {
+              logErr(`Errore lettura PDF "${file.name}": ${pdfErr.message}`);
+            }
+            continue;
+          }
         } else if (isXML) {
           const text = await file.text();
           if (slotType === 'fic') parsed = parseFIC(text);
         }
 
+        // ── ANNO-CONSAPEVOLEZZA FIC ────────────────────────────────
+        // Logica:
+        //  - anno corrente (es. 2026): auto-fill silenzioso
+        //  - anno precedente (es. 2025): auto-fill + info (caso NORMALE: dichiarazione 2025 presentata nel 2026)
+        //  - anni più vecchi (< annoCorrente-1): blocca, richiede conferma esplicita
+        if (slotType === 'fic' && parsed._annoRilevato) {
+          const annoCorrente = new Date().getFullYear();
+          const annoPrecedente = annoCorrente - 1;
+          const annoFic = parsed._annoRilevato;
+
+          if (annoFic === annoPrecedente) {
+            // Caso normale: FIC anno fiscale dichiarato (es. 2025 in 2026) → auto-fill
+            logInfo(`FIC anno ${annoFic} — anno fiscale dichiarato (normale per dichiarazione ${annoCorrente}). Dati applicati.`);
+          } else if (annoFic !== annoCorrente) {
+            // Anno troppo vecchio o futuro → blocca e chiedi conferma
+            const yearWarn = document.getElementById('fic-year-warning');
+            if (yearWarn) {
+              yearWarn.innerHTML = `⚠️ Questo documento è dell'anno <strong>${annoFic}</strong> ` +
+                `(anno atteso: ${annoPrecedente} o ${annoCorrente}). ` +
+                `<a href="#" onclick="applyFicData(); return false;">Applica comunque</a>`;
+              yearWarn.style.display = 'block';
+            }
+            window._pendingFicData = parsed;
+            delete parsed.fatt;
+            delete parsed.nFatture;
+            delete parsed.fattureCon;
+            logWarn(`FIC anno ${annoFic}: dati non applicati — anno inatteso. Clicca "Applica comunque" se è corretto.`);
+          }
+        }
+
         // ── MERGE INTELLIGENTE ────────────────────────────────────
-        const ACCUMULATE = ['totaleVersato','acc0900','acc1790','acc1791','acc1792','accInps','nFatture','fattureCon'];
+        const ACCUMULATE = ['totaleVersato','acc0900','acc1790','acc1791','acc1792','accInps','accInpsSaldoPrec','nFatture','fattureCon'];
         for (const [key, val] of Object.entries(parsed)) {
           if (val == null || val === false) continue;
+          if (key.startsWith('_')) continue; // campi interni
+
+          // Sanitize
+          if (typeof val === 'number') {
+            const sanitized = sanitizeValue(val, key);
+            if (sanitized == null) continue;
+          }
           
           if (slotType === 'rpf' || slotType === 'redditi') {
             if (key === 'inpsDov')  { prevYear.inpsDov  = val; continue; }
@@ -808,11 +1110,9 @@ async function processFiles(fileList, type) {
           }
 
           if (key === 'fatt') {
-            // Se proviene da RPF/redditi (dichiarazione anno precedente), va in prevYear e NON nel fatturato corrente
             if (slotType === 'rpf' || slotType === 'redditi') {
               prevYear.fatt = val;
             } else {
-              // Da FIC (anno corrente), si imposta/accumula in extracted.fatt
               extracted.fatt = (extracted.fatt || 0) + val;
             }
           } else if (ACCUMULATE.includes(key)) {
@@ -834,6 +1134,22 @@ async function processFiles(fileList, type) {
   prefillFields();
 }
 
+/* ── APPLY PENDING FIC DATA (anno diverso, utente conferma) ── */
+function applyFicData() {
+  if (!window._pendingFicData) return;
+  const p = window._pendingFicData;
+  if (p.fatt)       extracted.fatt       = (extracted.fatt || 0) + p.fatt;
+  if (p.nFatture)   extracted.nFatture   = (extracted.nFatture || 0) + p.nFatture;
+  if (p.fattureCon) extracted.fattureCon  = (extracted.fattureCon || 0) + p.fattureCon;
+  window._pendingFicData = null;
+  const yearWarn = document.getElementById('fic-year-warning');
+  if (yearWarn) yearWarn.style.display = 'none';
+  logOk(`Dati FIC applicati (anno ${p._annoRilevato}).`);
+  updateExtractedPills();
+  prefillFields();
+}
+window.applyFicData = applyFicData;
+
 
 /* ── UI E PREFILL ──────────────────────────────────────────── */
 const PILL_DEFS = [
@@ -846,6 +1162,7 @@ const PILL_DEFS = [
   { key:'imposta',          label:'Imp.sost. (LM39)',    src:'RPF'     },
   { key:'redLordo',         label:'Reddito lordo',       src:'RPF'     },
   { key:'inpsDov',          label:'INPS dovuto (RR)',    src:'RPF'     },
+  { key:'accInpsSaldoPrec', label:'Saldo INPS anno prec.', src:'F24'   },
   { key:'nFatture',         label:'N. fatture emesse',   src:'FIC'     },
   { key:'fattureCon',       label:'Fatture con bollo',   src:'FIC'     },
   { key:'coeff',            label:'Coeff. redditività',  src:'RPF', fmt: v => v+'%' },
@@ -945,16 +1262,14 @@ function prefillFields() {
   const hasCodici   = (extracted.acc0900||0) + (extracted.acc1790||0) + (extracted.acc1791||0) > 0;
   const hasRicevuta = extracted.isRicevuta && extracted.totaleVersato > 0;
 
-  console.log('[DEBUG prefill] acc0900:', extracted.acc0900, 
-              'accInps:', extracted.accInps, 
-              'hasCodici:', hasCodici,
-              'i-acc-inps value:', document.getElementById('i-acc-inps')?.value);
-
   if (hasCodici) {
-    // INPS deducibili = TUTTI i versamenti 0900 dell'anno solare,
-    // indipendentemente dal periodo contributivo (include saldo anno prec.)
+    // INPS deducibili = TUTTI i versamenti 0900 dell'anno solare:
+    // saldo anno prec. (0900 periodo N-1) + 1° acc + 2° acc (0900 periodo N)
     const inpsDed = extracted.acc0900 > 0 ? extracted.acc0900 : (extracted.inpsDed || null);
     if (inpsDed)            setField('i-inps-ded', 'inpsDed', inpsDed);
+    if ((extracted.accInpsSaldoPrec || 0) > 0) {
+      logInfo(`Dettaglio inpsDed: saldo anno prec. € ${fmtEur(extracted.accInpsSaldoPrec)} + acconti anno corrente € ${fmtEur(extracted.accInps || 0)}`);
+    }
     
     // Acconti imposta sostitutiva = 1790 + 1791
     const accImpF24 = (extracted.acc1790||0) + (extracted.acc1791||0);
@@ -969,27 +1284,16 @@ function prefillFields() {
     if (accInps)            setField('i-acc-inps', 'accInps', accInps);
 
   } else if (hasRicevuta || extracted.isGrafico) {
-    const totF24  = extracted.totaleVersato || 0;
-    const accImp  = extracted.accImp || 0;
-    const credito = (extracted.credito != null) ? extracted.credito : 0;
-    const impCash = Math.max(0, accImp - credito);
-    const inpsDed = Math.max(0, totF24 - impCash);
-    
-    if (inpsDed > 0) {
-      setField('i-inps-ded', 'inpsDed', inpsDed);
-      logInfo(`INPS deducibili calcolati da ricevute F24: € ${fmtEur(inpsDed)}`);
-      
-      const inpsSaldo = extracted.inpsSaldo || 0;
-      const accInps   = Math.max(0, inpsDed - inpsSaldo);
-      if (accInps > 0) {
-        setField('i-acc-inps', 'accInps', accInps);
-        logInfo(`Acconti INPS calcolati da ricevute F24: € ${fmtEur(accInps)}`);
-      }
-    } else {
-      if (extracted.inpsDed)  setField('i-inps-ded', 'inpsDed', extracted.inpsDed);
-      if (extracted.accInps)  setField('i-acc-inps', 'accInps', extracted.accInps);
-    }
+    // ⚠️ RICEVUTA ENTRATEL: contiene solo il totale versato, non i codici tributo.
+    // Non è possibile separare INPS da imposta dal solo importo totale.
+    // Mostriamo i dati RPF se disponibili, altrimenti chiediamo di caricare la delega F24.
+    logWarn('Rilevata solo ricevuta/grafico F24 — impossibile separare INPS da imposta. ' +
+            'Carica la DELEGA F24 originale per dati precisi, oppure compila manualmente i campi sottostanti.');
+
+    // Se l'RPF è stato caricato, usiamo i suoi valori (più affidabili)
+    if (extracted.inpsDed)  setField('i-inps-ded', 'inpsDed', extracted.inpsDed);
     if (extracted.accImp)   setField('i-acc-imp',  'accImp',  extracted.accImp);
+    if (extracted.accInps)  setField('i-acc-inps', 'accInps', extracted.accInps);
 
   } else {
     // Solo RPF
